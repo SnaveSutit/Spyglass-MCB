@@ -144,6 +144,16 @@
         "configuration": "./mcfunction-language-configuration.json"
       },
       {
+        "id": "mcbuild",
+        "aliases": [
+          "mc-build"
+        ],
+        "extensions": [
+          ".mcb"
+        ],
+        "configuration": "./mc-build-language-configuration.json"
+      },
+      {
         "id": "mcdoc",
         "extensions": [
           ".mcdoc"

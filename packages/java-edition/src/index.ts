@@ -15,6 +15,7 @@ import {
 	symbolRegistrar,
 } from './dependency/index.js'
 import * as jeJson from './json/index.js'
+import * as jeMcb from './mcbuild/index.js'
 import { registerMcdocAttributes, registerPackFormatAttribute } from './mcdocAttributes.js'
 import * as jeMcf from './mcfunction/index.js'
 
@@ -174,6 +175,7 @@ export const initialize: core.ProjectInitializer = async (ctx) => {
 	json.initialize(ctx)
 	jeJson.initialize(ctx)
 	jeMcf.initialize(ctx, summary.commands, release)
+	jeMcb.initialize(ctx, summary.commands, release)
 	nbt.initialize(ctx)
 
 	return { loadedVersion: release, errorSource: release }

@@ -1,0 +1,47 @@
+{
+	"brackets": [
+		["[", "]"],
+		["[B;", "]"],
+		["[I;", "]"],
+		["[L;", "]"],
+		["{", "}"],
+		["<%", "%>"],
+		["<%%", "%%>"]
+	],
+	"comments": {
+		"lineComment": "#"
+	},
+	"autoClosingPairs": [
+		{
+			"open": "'",
+			"close": "'",
+			"notIn": ["comment", "string"]
+		},
+		{
+			"open": "\"",
+			"close": "\""
+		},
+		{
+			"open": "[",
+			"close": "]"
+		},
+		{
+			"open": "{",
+			"close": "}"
+		},
+		["<%", "%>"],
+		["<%%", "%%>"]
+	],
+	"autoCloseBefore": ":,=}]\"' \n\t",
+	// symbols that are auto closed when typing
+	// symbols that can be used to surround a selection
+	"surroundingPairs": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"],
+		["\"", "\""],
+		["'", "'"],
+		["<", ">"],
+		["%", "%"]
+	]
+}

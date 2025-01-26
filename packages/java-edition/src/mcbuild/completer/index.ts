@@ -1,12 +1,12 @@
 import * as core from '@spyglassmc/core'
 import { McfunctionNode } from '@spyglassmc/mcfunction'
 import { ComponentTestExactNode, ComponentTestSubpredicateNode } from '../../mcfunction/node'
-import type { McbuildNode } from '../node'
+import type { MCBNode } from '../node'
 
-const componentTests: core.Completer<McbuildNode> = (node, ctx) => {
+const componentTests: core.Completer<MCBNode> = (node, ctx) => {
 	// TODO: improve this completer
 	const test = core.AstNode.findShallowestChild({
-		node: node as core.Mutable<McbuildNode>,
+		node: node as core.Mutable<MCBNode>,
 		needle: ctx.offset,
 		endInclusive: true,
 		predicate: (n) => McfunctionNode.is(n),

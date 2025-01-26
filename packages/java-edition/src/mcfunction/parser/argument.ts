@@ -1624,7 +1624,7 @@ function validateUnquotable(
 	})
 }
 
-function vector(options: VectorNode.Options): core.InfallibleParser<VectorNode> {
+export function vector(options: VectorNode.Options): core.InfallibleParser<VectorNode> {
 	return (src, ctx): VectorNode => {
 		const ans: VectorNode = {
 			type: 'mcfunction:vector',

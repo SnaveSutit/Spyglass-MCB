@@ -11,28 +11,68 @@ import type {
 	MCBFunctionBlockArgumentsNode,
 	MCBFunctionBlockNode,
 	MCBFunctionDefinitionNode,
+	MCBInlineJSBlock,
+	MCBJSBlockCommand,
+	MCBMultilineJSBlock,
 	MCBNode,
+	MCBStringWithInlineJSBlock,
+	MCBVanillaCommand,
 } from '../node'
 
 const FUNCTION_NAME_CHARS = new Set(
 	'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.'.split(''),
 )
 const BLOCK_NAME_CHARS = new Set([...FUNCTION_NAME_CHARS, '/'])
+const LINE_CONTAINS_INLINE_JS_BLOCK = /<%(.+?)%>/
 
-export const comment: core.Parser<core.CommentNode> = core.comment({
-	singleLinePrefixes: new Set(['#']),
-})
+const skipUntil: core.Parser<undefined> = (src, ctx) => {
+	src.readUntil('<%', core.LF, core.CR)
+	if (!src.canReadInLine()) {
+		ctx.err.report(localize('expected', '<%'), src)
+		return core.Failure
+	}
+	return undefined
+}
+
+function comment(): core.Parser<core.CommentNode> {
+	return (src, ctx) => {
+		const res = core.comment({
+			singleLinePrefixes: new Set(['#']),
+		})(src, ctx) as core.CommentNode
+		if (res.comment.match(LINE_CONTAINS_INLINE_JS_BLOCK)) {
+			const commentSrc = new core.Source(res.comment)
+			const blocks = core.repeat(
+				core.failOnEmpty(
+					core.sequence([
+						skipUntil,
+						inlineJSBlock(),
+					]),
+				),
+			)(commentSrc, ctx)
+			if (blocks.children.length === 0) {
+				ctx.err.report(
+					localize('expected', 'inline JS block in comment after matching regex (Bug)'),
+					src,
+				)
+			}
+			res.children = blocks.children
+		}
+		return res
+	}
+}
+
+const argumentSeparator = core.map(mcf.sep, () => undefined)
 
 function syntaxGap(allowComments = true): core.InfallibleParser<core.CommentNode[]> {
 	return (src: core.Source, ctx: core.ParserContext): core.CommentNode[] => {
 		const ans: core.CommentNode[] = []
 
-		src.skipSpace()
+		src.skipWhitespace()
 		if (allowComments) {
 			while (src.canRead() && src.peek() === '#') {
-				const result = comment(src, ctx) as core.CommentNode
+				const result = comment()(src, ctx) as core.CommentNode
 				ans.push(result)
-				src.skipSpace()
+				src.skipWhitespace()
 			}
 		}
 
@@ -40,25 +80,152 @@ function syntaxGap(allowComments = true): core.InfallibleParser<core.CommentNode
 	}
 }
 
-function expectArgumentGap(): core.InfallibleParser<[]> {
+function optionalSequence<
+	GN extends core.AstNode = never,
+	PA extends core.SP<core.AstNode>[] = core.SP<core.AstNode>[],
+>(
+	parsers: core.SP<core.AstNode>[],
+	parseGap?: core.InfallibleParser<core.AstNode[]>,
+): core.Parser<core.SequenceUtil<core.AstNode> | undefined> {
+	return core.optional(core.sequence(parsers, parseGap))
+}
+
+function expectEOL(): core.InfallibleParser<undefined> {
 	return (src, ctx) => {
-		if (!(src.canReadInLine() && src.trySkip(' '))) {
-			ctx.err.report(localize('mcfunction.parser.eoc-unexpected'), src)
+		src.skipSpace()
+		if (src.canReadInLine()) {
+			ctx.err.report(localize('expected', 'End of Line'), src)
 		}
-		return []
 	}
 }
 
-function punctuation(punctuation: string): core.InfallibleParser<core.AstNode> {
+/**
+ * A parser that checks if the cursor is at the end of the line.
+ * @returns `undefined` if the cursor is at the end of the line, otherwise `core.Failure`.
+ */
+function isEOL(): core.Parser<undefined> {
+	return (src, ctx) => {
+		if (src.canReadInLine()) {
+			return core.Failure
+		}
+		return undefined
+	}
+}
+
+function punctuation(punctuation: string): core.InfallibleParser<undefined> {
 	return (src, ctx) => {
 		src.skipWhitespace()
 		if (!src.trySkip(punctuation)) {
 			ctx.err.report(
-				localize('expected-got', localeQuote(punctuation), localeQuote(src.peek())),
+				localize(
+					'expected-got',
+					localeQuote(punctuation),
+					localeQuote(src.peek(punctuation.length)),
+				),
 				src,
 			)
 		}
-		return { type: 'punctuation', range: core.Range.create(src) }
+	}
+}
+
+function inlineJSBlock(): core.InfallibleParser<MCBInlineJSBlock> {
+	return core.setType(
+		'mcbuild:inline_js_block',
+		core.sequence([
+			punctuation('<%'),
+			core.stopBefore(
+				// TODO: Swap out string for the JS parser
+				core.string({
+					unquotable: {
+						allowEmpty: true,
+					},
+				}),
+				'<%',
+				'%>',
+				core.LF,
+				core.CR,
+			),
+			punctuation('%>'),
+		]),
+	)
+}
+
+function stringWithjsBlockSupport(
+	options: Required<Pick<core.StringOptions, 'unquotable'>>,
+): core.InfallibleParser<MCBStringWithInlineJSBlock> {
+	return core.setType(
+		'mcbuild:string_with_inline_js_block',
+		core.repeat(
+			core.failOnEmpty(
+				core.any([
+					core.failOnEmpty(
+						core.stopBefore(
+							core.string(options),
+							'<%',
+							core.LF,
+							core.CR,
+						),
+					),
+					core.failOnError(inlineJSBlock()),
+				]),
+			),
+		),
+	)
+}
+
+function multilineJSBlock(): core.Parser<MCBMultilineJSBlock> {
+	return core.setType(
+		'mcbuild:multiline_js_block',
+		core.sequence([
+			punctuation('<%%'),
+			// TODO: Swap out string for the JS parser
+			core.stopBefore(
+				core.string({
+					unquotable: {
+						allowEmpty: true,
+					},
+				}),
+				'<%%',
+				'%%>',
+			),
+			punctuation('%%>'),
+		]),
+	)
+}
+
+function jsBlockCommand(): core.InfallibleParser<MCBJSBlockCommand> {
+	return core.setType(
+		'mcbuild:js_block_command',
+		stringWithjsBlockSupport({
+			unquotable: {
+				allowEmpty: true,
+				blockList: new Set(),
+			},
+		}),
+	)
+}
+
+function commandContext(
+	commandTree: mcf.RootTreeNode,
+	argument: mcf.ArgumentParserGetter,
+	options: mcf.McfunctionOptions,
+): core.Parser<core.AstNode> {
+	return (src, ctx) => {
+		const ans: MCBVanillaCommand = {
+			type: 'mcbuild:vanilla_command',
+			range: core.Range.create(src),
+			children: [],
+		}
+
+		if (src.peekLine().match(/<%(.+?)%>/)) {
+			ans.children.push(jsBlockCommand()(src, ctx))
+		} else {
+			ans.children.push(mcf.command(commandTree, argument, options.commandOptions)(src, ctx))
+		}
+
+		ans.range.end = src.cursor
+
+		return ans
 	}
 }
 
@@ -67,6 +234,9 @@ function functionContext(
 	argument: mcf.ArgumentParserGetter,
 	options: mcf.McfunctionOptions,
 ): core.Parser<MCBFunctionBlockNode> {
+	const parser = commandContext(commandTree, argument, options)
+	const command = options.lineContinuation ? core.concatOnTrailingBackslash(parser) : parser
+
 	return (src, ctx) => {
 		const ans: MCBFunctionBlockNode = {
 			type: 'mcbuild:function_block',
@@ -75,18 +245,20 @@ function functionContext(
 		}
 
 		while (src.skipWhitespace().canReadInLine()) {
-			let result: core.CommentNode | mcf.CommandNode | mcf.MacroNode | MCBFunctionBlockNode
+			let result: core.AstNode
 			if (src.peek() === '}') {
 				// MC-Build: End of current function block
 				break
 			} else if (src.peek(5) === 'block' || src.peek() === '{') {
 				result = functionBlock(commandTree, options, true)(src, ctx) as MCBFunctionBlockNode
 			} else if (src.peek() === '#') {
-				result = comment(src, ctx) as core.CommentNode
+				result = comment()(src, ctx) as core.CommentNode
 			} else if (src.peek() === '$') {
 				result = mcf.macro(options.macros ?? false)(src, ctx) as mcf.MacroNode
+			} else if (src.peek(3) === '<%%') {
+				result = multilineJSBlock()(src, ctx) as MCBMultilineJSBlock
 			} else {
-				result = mcf.command(commandTree, argument, options.commandOptions)(src, ctx)
+				result = command(src, ctx) as core.AstNode
 			}
 			ans.children.push(result)
 			src.nextLine()
@@ -97,61 +269,60 @@ function functionContext(
 	}
 }
 
-const functionContextEntry = (
-	commandTree: RootTreeNode,
-	argument: mcf.ArgumentParserGetter,
-	options: mcf.McfunctionOptions = {},
-) => {
-	const parser = functionContext(commandTree, argument, options)
-	return options.lineContinuation ? core.concatOnTrailingBackslash(parser) : parser
-}
-
 function functionBlockMacroArguments(): core.Parser<MCBFunctionBlockArgumentsNode> {
 	return core.setType(
 		'mcbuild:function_block_arguments',
-		core.any([
-			core.sequence([
-				core.failOnEmpty(core.literal('with')),
-				core.select([
-					{
-						prefix: 'block',
-						parser: core.sequence([
-							core.literal('block'),
-							vector({ dimension: 3 }),
-						], expectArgumentGap()),
-					},
-					{
-						prefix: 'entity',
-						parser: core.sequence([
-							core.literal('entity'),
-							(src, ctx) => {
-								const res = entity('single', 'entities')(src, ctx) as EntityNode
-								if (res.range.start === res.range.end) {
-									ctx.err.report(localize('expected', '<target: entity>'), src)
-								}
-								return res
-							},
-						], expectArgumentGap()),
-					},
-					{
-						prefix: 'storage',
-						parser: core.sequence([
-							core.literal('storage'),
-							core.resourceLocation({
-								category: 'storage',
-								usageType: 'reference',
-								allowTag: false,
-							}),
-						], expectArgumentGap()),
-					},
-					{
-						// Show error message if no prefix is provided
-						parser: core.literal('block', 'entity', 'storage'),
-					},
+		core.sequence([
+			core.any([
+				core.sequence([
+					core.failOnEmpty(core.literal('with')),
+					argumentSeparator,
+					core.select([
+						{
+							prefix: 'block',
+							parser: core.sequence([
+								core.literal('block'),
+								argumentSeparator,
+								vector({ dimension: 3 }),
+							]),
+						},
+						{
+							prefix: 'entity',
+							parser: core.sequence([
+								core.literal('entity'),
+								argumentSeparator,
+								(src, ctx) => {
+									const res = entity('single', 'entities')(src, ctx) as EntityNode
+									if (res.range.start === res.range.end) {
+										ctx.err.report(localize('expected', '<target: entity>'), src)
+									}
+									return res
+								},
+							]),
+						},
+						{
+							prefix: 'storage',
+							parser: core.sequence([
+								core.literal('storage'),
+								argumentSeparator,
+								core.resourceLocation({
+									category: 'storage',
+									usageType: 'reference',
+									allowTag: false,
+								}),
+							]),
+						},
+						{
+							// Show error message if no prefix is provided
+							parser: core.literal('block', 'entity', 'storage'),
+						},
+					]),
+					argumentSeparator,
+					nbt.parser.path,
 				]),
-				nbt.parser.path,
-			], expectArgumentGap()),
-			core.failOnEmpty(nbt.parser.compound),
+				core.failOnEmpty(nbt.parser.compound),
+			]),
+			expectEOL(),
 		]),
 	)
 }
@@ -165,26 +336,33 @@ function functionBlock(
 		return core.setType(
 			'mcbuild:function_block',
 			core.sequence([
-				core.optional(
-					core.sequence([
+				optionalSequence([
+					core.failOnEmpty(
+						core.literal('block'),
+					),
+					argumentSeparator,
+					optionalSequence([
 						core.failOnEmpty(
-							core.literal('block'),
-						),
-						core.optional(
-							core.failOnEmpty(core.string({
+							stringWithjsBlockSupport({
 								unquotable: {
 									allowEmpty: false,
 									allowList: BLOCK_NAME_CHARS,
 								},
-							})),
+							}),
 						),
-					], syntaxGap()),
-				),
+						argumentSeparator,
+					]),
+				]),
 				punctuation('{'),
-				core.optional(functionBlockMacroArguments()),
-				(src, ctx) => functionContextEntry(tree, argument, mcfunctionOptions)(src, ctx),
-				punctuation('}'),
-			], syntaxGap()),
+				optionalSequence([
+					argumentSeparator,
+					functionBlockMacroArguments(),
+				]),
+				core.sequence([
+					(src, ctx) => functionContext(tree, argument, mcfunctionOptions)(src, ctx),
+					punctuation('}'),
+				], syntaxGap()),
+			]),
 		)
 	}
 
@@ -192,9 +370,9 @@ function functionBlock(
 		'mcbuild:function_block',
 		core.sequence([
 			punctuation('{'),
-			(src, ctx) => functionContextEntry(tree, argument, mcfunctionOptions)(src, ctx),
+			(src, ctx) => functionContext(tree, argument, mcfunctionOptions)(src, ctx),
 			punctuation('}'),
-		], syntaxGap(false)),
+		], syntaxGap()),
 	)
 }
 
@@ -206,12 +384,14 @@ function functionDefinition(
 		'mcbuild:function_definition',
 		core.sequence([
 			core.failOnEmpty(core.literal('function')),
+			argumentSeparator,
 			core.failOnEmpty(core.string({
 				unquotable: {
 					allowEmpty: false,
 					allowList: FUNCTION_NAME_CHARS,
 				},
 			})),
+			argumentSeparator,
 			core.optional(
 				core.failOnEmpty(
 					core.resourceLocation({
@@ -222,7 +402,7 @@ function functionDefinition(
 				),
 			),
 			functionBlock(tree, mcfunctionOptions, false),
-		], syntaxGap(false)),
+		]),
 	)
 }
 
@@ -233,17 +413,20 @@ function dirDefinition(
 	return core.setType(
 		'mcbuild:directory_definition',
 		core.sequence([
-			core.failOnEmpty(core.literal('dir')),
-			core.failOnEmpty(core.string({
-				unquotable: {
-					allowEmpty: false,
-					allowList: FUNCTION_NAME_CHARS,
-				},
-			})),
+			core.sequence([
+				core.failOnEmpty(core.literal('dir')),
+				argumentSeparator,
+				core.failOnEmpty(core.string({
+					unquotable: {
+						allowEmpty: false,
+						allowList: FUNCTION_NAME_CHARS,
+					},
+				})),
+			]),
 			punctuation('{'),
 			core.repeat((src, ctx) => dirContext(tree, mcfunctionOptions)(src, ctx), syntaxGap()),
 			punctuation('}'),
-		], syntaxGap(false)),
+		], syntaxGap()),
 	)
 }
 

@@ -63,7 +63,7 @@ export function attempt<N extends Returnable = AstNode>(
 	}
 }
 
-type SP<CN extends AstNode> = SIP<CN> | Parser<CN | SequenceUtil<CN> | undefined> | {
+export type SP<CN extends AstNode> = SIP<CN> | Parser<CN | SequenceUtil<CN> | undefined> | {
 	get: (result: SequenceUtil<CN>) => Parser<CN | SequenceUtil<CN> | undefined> | undefined
 }
 type SIP<CN extends AstNode> =

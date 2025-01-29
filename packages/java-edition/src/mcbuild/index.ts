@@ -1,5 +1,6 @@
 import * as core from '@spyglassmc/core'
 import type * as mcf from '@spyglassmc/mcfunction'
+import fs from 'fs'
 import type { McmetaCommands } from '../dependency/index.js'
 import { ReleaseVersion } from '../dependency/index.js'
 import { getPatch } from '../mcfunction/tree/patch.js'
@@ -26,6 +27,10 @@ export const initialize = (
 		extensions: ['.mcb'],
 		parser(src, ctx) {
 			const result = parser.entry(tree, mcfunctionOptions)(src, ctx)
+			fs.writeFileSync(
+				'C:/Users/SnaveSutit/Desktop/mcbuild.json',
+				JSON.stringify(result, undefined, '\t'),
+			)
 			ctx.logger.info(result)
 			return result
 		},

@@ -151,7 +151,7 @@
         "extensions": [
           ".mcb"
         ],
-        "configuration": "./mc-build-language-configuration.json"
+        "configuration": "./mcbuild-language-configuration.json"
       },
       {
         "id": "mcdoc",

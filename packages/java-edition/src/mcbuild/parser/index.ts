@@ -424,7 +424,7 @@ function functionBlock(
 	const checkIfBlockPrefixAllowed: core.Parser<undefined> = (src, ctx) => {
 		if (!allowBlockPrefix) {
 			ctx.err.report(
-				localize('mcbuild.parser.function_block.no_block_predix'),
+				localize('mcbuild.parser.function_block.no_block_prefix'),
 				src,
 			)
 			return core.Failure

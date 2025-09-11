@@ -25,30 +25,81 @@ const FUNCTION_NAME_CHARS = new Set(
 const BLOCK_NAME_CHARS = new Set([...FUNCTION_NAME_CHARS, '/'])
 const LINE_CONTAINS_INLINE_JS_BLOCK = /<%(.+?)%>/
 
-const skipUntil: core.Parser<undefined> = (src, ctx) => {
-	src.readUntil('<%', core.LF, core.CR)
-	if (!src.canReadInLine()) {
-		ctx.err.report(localize('expected', '<%'), src)
-		return core.Failure
+function skipUntil(...terminators: string[]): core.Parser<undefined> {
+	return (src, ctx) => {
+		while (src.canRead()) {
+			for (const term of terminators) {
+				if (src.tryPeek(term)) {
+					return undefined
+				}
+			}
+			src.skip()
+		}
+		return undefined
 	}
-	return undefined
+}
+
+function attempt(parser: core.Parser<core.AstNode>): core.Parser<core.AstNode> {
+	return (src, ctx) => {
+		const { result, updateSrcAndCtx } = core.attempt(parser, src, ctx)
+		if (result === core.Failure) {
+			return core.Failure
+		}
+		updateSrcAndCtx()
+		return result
+	}
+}
+
+function reportOnFail<
+	N extends core.Returnable,
+	T extends core.Parser<N> | core.InfallibleParser<N>,
+>(
+	parser: T,
+	message: string,
+): T {
+	return ((src, ctx) => {
+		const result = parser(src, ctx)
+		if (result === core.Failure) {
+			ctx.err.report(message, src)
+		}
+		return result
+	}) as T
+}
+
+function debug<
+	N extends core.Returnable,
+	T extends core.Parser<N> | core.InfallibleParser<N>,
+>(
+	parser: T,
+	preParse?: (parser: T, src: core.Source, ctx: core.ParserContext) => void,
+	postParse?: (res: core.Result<N>, src: core.Source, ctx: core.ParserContext) => void,
+): T {
+	return ((src, ctx) => {
+		preParse?.(parser, src, ctx)
+		const res = parser(src, ctx)
+		postParse?.(res, src, ctx)
+		return res
+	}) as T
 }
 
 function comment(): core.Parser<core.CommentNode> {
 	return (src, ctx) => {
 		const res = core.comment({
 			singleLinePrefixes: new Set(['#']),
-		})(src, ctx) as core.CommentNode
-		if (res.comment.match(LINE_CONTAINS_INLINE_JS_BLOCK)) {
-			const commentSrc = new core.Source(res.comment)
+		})(src, ctx)
+		if (res === core.Failure) {
+			return core.Failure
+		} else if (res.comment.match(LINE_CONTAINS_INLINE_JS_BLOCK)) {
+			const commentSrc = new core.Source(src.string.slice(0, src.cursor + res.comment.length))
+			commentSrc.cursor = src.cursor - res.comment.length
+
 			const blocks = core.repeat(
-				core.failOnEmpty(
-					core.sequence([
-						skipUntil,
-						inlineJSBlock(),
-					]),
-				),
+				core.sequence([
+					skipUntil('<%', core.LF, core.CR),
+					core.failOnEmpty(inlineJSBlock()),
+				]),
 			)(commentSrc, ctx)
+
 			if (blocks.children.length === 0) {
 				ctx.err.report(
 					localize('expected', 'inline JS block in comment after matching regex (Bug)'),
@@ -61,7 +112,19 @@ function comment(): core.Parser<core.CommentNode> {
 	}
 }
 
-const argumentSeparator = core.map(mcf.sep, () => undefined)
+function argumentSeparator<T extends undefined = undefined>(
+	returnValue?: T,
+): core.InfallibleParser<T>
+function argumentSeparator<T extends core.AstNode[] = []>(
+	returnValue?: T,
+): core.InfallibleParser<T>
+function argumentSeparator<T extends ([] | undefined) = undefined>(
+	returnValue?: T,
+): core.InfallibleParser<T> {
+	return core.map(mcf.sep, () => {
+		return returnValue as T
+	})
+}
 
 function syntaxGap(allowComments = true): core.InfallibleParser<core.CommentNode[]> {
 	return (src: core.Source, ctx: core.ParserContext): core.CommentNode[] => {
@@ -112,9 +175,8 @@ function isEOL(): core.Parser<undefined> {
 	}
 }
 
-function punctuation(punctuation: string): core.InfallibleParser<undefined> {
+function punctuation(punctuation: string): core.Parser<core.AstNode> {
 	return (src, ctx) => {
-		src.skipWhitespace()
 		if (!src.trySkip(punctuation)) {
 			ctx.err.report(
 				localize(
@@ -124,12 +186,18 @@ function punctuation(punctuation: string): core.InfallibleParser<undefined> {
 				),
 				src,
 			)
+			return core.Failure
+		}
+		return {
+			type: 'punctuation',
+			range: core.Range.create(src.cursor - punctuation.length, src.cursor),
+			value: punctuation,
 		}
 	}
 }
 
-function inlineJSBlock(): core.InfallibleParser<MCBInlineJSBlock> {
-	return core.setType(
+function inlineJSBlock(): core.Parser<MCBInlineJSBlock> {
+	const parser = core.setType(
 		'mcbuild:inline_js_block',
 		core.sequence([
 			punctuation('<%'),
@@ -148,27 +216,35 @@ function inlineJSBlock(): core.InfallibleParser<MCBInlineJSBlock> {
 			punctuation('%>'),
 		]),
 	)
+	return (src, ctx) => {
+		const result = parser(src, ctx) as core.Result<MCBInlineJSBlock>
+		if (result === core.Failure) {
+			return result
+		}
+		result.hover = 'Inline JS Block'
+		return result
+	}
 }
 
-function stringWithjsBlockSupport(
-	options: Required<Pick<core.StringOptions, 'unquotable'>>,
+function stringWithJSBlockSupport(
+	options: {
+		unquotable: Exclude<core.StringOptions['unquotable'], boolean | undefined>
+	},
 ): core.InfallibleParser<MCBStringWithInlineJSBlock> {
 	return core.setType(
 		'mcbuild:string_with_inline_js_block',
 		core.repeat(
-			core.failOnEmpty(
-				core.any([
-					core.failOnEmpty(
-						core.stopBefore(
-							core.string(options),
-							'<%',
-							core.LF,
-							core.CR,
-						),
+			core.any([
+				core.failOnEmpty(
+					core.stopBefore(
+						core.string(options),
+						'<%',
+						core.LF,
+						core.CR,
 					),
-					core.failOnError(inlineJSBlock()),
-				]),
-			),
+				),
+				core.failOnError(core.failOnEmpty(inlineJSBlock())),
+			]),
 		),
 	)
 }
@@ -196,10 +272,9 @@ function multilineJSBlock(): core.Parser<MCBMultilineJSBlock> {
 function jsBlockCommand(): core.InfallibleParser<MCBJSBlockCommand> {
 	return core.setType(
 		'mcbuild:js_block_command',
-		stringWithjsBlockSupport({
+		stringWithJSBlockSupport({
 			unquotable: {
 				allowEmpty: true,
-				blockList: new Set(),
 			},
 		}),
 	)
@@ -276,50 +351,52 @@ function functionBlockMacroArguments(): core.Parser<MCBFunctionBlockArgumentsNod
 			core.any([
 				core.sequence([
 					core.failOnEmpty(core.literal('with')),
-					argumentSeparator,
 					core.select([
 						{
 							prefix: 'block',
 							parser: core.sequence([
 								core.literal('block'),
-								argumentSeparator,
-								vector({ dimension: 3 }),
-							]),
+								reportOnFail(
+									core.failOnEmpty(
+										vector({ dimension: 3 }),
+									),
+									localize('expected', 'vector'),
+								),
+							], argumentSeparator([])),
 						},
 						{
 							prefix: 'entity',
 							parser: core.sequence([
 								core.literal('entity'),
-								argumentSeparator,
-								(src, ctx) => {
-									const res = entity('single', 'entities')(src, ctx) as EntityNode
-									if (res.range.start === res.range.end) {
-										ctx.err.report(localize('expected', '<target: entity>'), src)
-									}
-									return res
-								},
-							]),
+								reportOnFail(
+									entity('single', 'entities'),
+									localize('expected', localize('selector')),
+								),
+							], argumentSeparator([])),
 						},
 						{
 							prefix: 'storage',
 							parser: core.sequence([
 								core.literal('storage'),
-								argumentSeparator,
-								core.resourceLocation({
-									category: 'storage',
-									usageType: 'reference',
-									allowTag: false,
-								}),
-							]),
+								reportOnFail(
+									core.failOnEmpty(
+										core.resourceLocation({
+											category: 'storage',
+											usageType: 'reference',
+											allowTag: false,
+										}),
+									),
+									localize('expected', localize('resource-location')),
+								),
+							], argumentSeparator([])),
 						},
 						{
 							// Show error message if no prefix is provided
 							parser: core.literal('block', 'entity', 'storage'),
 						},
 					]),
-					argumentSeparator,
 					nbt.parser.path,
-				]),
+				], argumentSeparator([])),
 				core.failOnEmpty(nbt.parser.compound),
 			]),
 			expectEOL(),
@@ -331,48 +408,65 @@ function functionBlock(
 	tree: RootTreeNode,
 	mcfunctionOptions: mcf.McfunctionOptions,
 	allowBlockPrefix = true,
+	allowArguments = true,
 ): core.Parser<MCBFunctionBlockNode> {
-	if (allowBlockPrefix) {
-		return core.setType(
-			'mcbuild:function_block',
-			core.sequence([
-				optionalSequence([
-					core.failOnEmpty(
-						core.literal('block'),
-					),
-					argumentSeparator,
-					optionalSequence([
-						core.failOnEmpty(
-							stringWithjsBlockSupport({
-								unquotable: {
-									allowEmpty: false,
-									allowList: BLOCK_NAME_CHARS,
-								},
-							}),
-						),
-						argumentSeparator,
-					]),
-				]),
-				punctuation('{'),
-				optionalSequence([
-					argumentSeparator,
-					functionBlockMacroArguments(),
-				]),
-				core.sequence([
-					(src, ctx) => functionContext(tree, argument, mcfunctionOptions)(src, ctx),
-					punctuation('}'),
-				], syntaxGap()),
-			]),
-		)
+	const checkIfArgsAllowed: core.Parser<undefined> = (src, ctx) => {
+		if (!allowArguments) {
+			ctx.err.report(
+				localize('mcbuild.parser.function_block.no_macro_arguments'),
+				src,
+			)
+			return core.Failure
+		}
+		return undefined
+	}
+
+	const checkIfBlockPrefixAllowed: core.Parser<undefined> = (src, ctx) => {
+		if (!allowBlockPrefix) {
+			ctx.err.report(
+				localize('mcbuild.parser.function_block.no_block_predix'),
+				src,
+			)
+			return core.Failure
+		}
+		return undefined
 	}
 
 	return core.setType(
 		'mcbuild:function_block',
 		core.sequence([
+			// [block [<function name>]] { ...
+			optionalSequence([
+				core.failOnEmpty(core.literal('block')),
+				checkIfBlockPrefixAllowed,
+				core.optional(
+					core.failOnEmpty(
+						stringWithJSBlockSupport({
+							unquotable: {
+								allowEmpty: false,
+								allowList: BLOCK_NAME_CHARS,
+							},
+						}),
+					),
+				),
+			], argumentSeparator([])),
 			punctuation('{'),
-			(src, ctx) => functionContext(tree, argument, mcfunctionOptions)(src, ctx),
-			punctuation('}'),
-		], syntaxGap()),
+			optionalSequence([
+				argumentSeparator(),
+				functionBlockMacroArguments(),
+				// Nested in a new sequence to only run it if arguments are found.
+				checkIfArgsAllowed,
+			]),
+			expectEOL(),
+			core.sequence([
+				(src, ctx) => functionContext(tree, argument, mcfunctionOptions)(src, ctx),
+				core.sequence([
+					// Wrapped in a sequence to disable the gap parser between these two parsers.
+					punctuation('}'),
+					expectEOL(),
+				]),
+			], syntaxGap()),
+		]),
 	)
 }
 
@@ -382,27 +476,28 @@ function functionDefinition(
 ): core.Parser<MCBFunctionDefinitionNode> {
 	return core.setType(
 		'mcbuild:function_definition',
-		core.sequence([
-			core.failOnEmpty(core.literal('function')),
-			argumentSeparator,
-			core.failOnEmpty(core.string({
-				unquotable: {
-					allowEmpty: false,
-					allowList: FUNCTION_NAME_CHARS,
-				},
-			})),
-			argumentSeparator,
-			core.optional(
-				core.failOnEmpty(
-					core.resourceLocation({
-						category: 'function',
-						usageType: 'reference',
-						allowTag: false,
-					}),
+		core.sequence(
+			[
+				core.failOnEmpty(core.literal('function')),
+				core.failOnEmpty(core.string({
+					unquotable: {
+						allowEmpty: false,
+						allowList: FUNCTION_NAME_CHARS,
+					},
+				})),
+				core.optional(
+					core.failOnEmpty(
+						core.resourceLocation({
+							category: 'tag/function',
+							usageType: 'reference',
+							allowTag: false,
+						}),
+					),
 				),
-			),
-			functionBlock(tree, mcfunctionOptions, false),
-		]),
+				functionBlock(tree, mcfunctionOptions, false, false),
+			],
+			argumentSeparator([]),
+		),
 	)
 }
 
@@ -415,17 +510,18 @@ function dirDefinition(
 		core.sequence([
 			core.sequence([
 				core.failOnEmpty(core.literal('dir')),
-				argumentSeparator,
 				core.failOnEmpty(core.string({
 					unquotable: {
 						allowEmpty: false,
 						allowList: FUNCTION_NAME_CHARS,
 					},
 				})),
-			]),
+			], argumentSeparator([])),
 			punctuation('{'),
+			expectEOL(),
 			core.repeat((src, ctx) => dirContext(tree, mcfunctionOptions)(src, ctx), syntaxGap()),
 			punctuation('}'),
+			expectEOL(),
 		], syntaxGap()),
 	)
 }

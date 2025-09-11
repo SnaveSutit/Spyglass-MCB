@@ -161,6 +161,20 @@ export class ReadonlySource {
 		const innerStart = IndexMap.toInnerOffset(this.indexMap, start)
 		return this.string.slice(innerStart, this.innerCursor)
 	}
+
+	/**
+	 * @returns The line and column number of the current cursor. Useful for debugging.
+	 * @example
+	 * ctx.logging.log(`The cursor is at ${src.getLineAndColumn().join(':')}!`)
+	 * // Or
+	 * const [line, column] = src.getLineAndColumn()
+	 * ctx.logging.log(`Something special is at ${line}:${column}!`)
+	 */
+	getLineAndColumn() {
+		const line = this.string.slice(0, this.cursor).split('\n').length
+		const column = this.cursor - this.string.lastIndexOf('\n', this.cursor)
+		return [line, column] as const
+	}
 }
 
 export class Source extends ReadonlySource {

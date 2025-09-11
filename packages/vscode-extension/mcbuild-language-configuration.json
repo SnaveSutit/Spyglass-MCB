@@ -33,8 +33,6 @@
 		["<%%", "%%>"]
 	],
 	"autoCloseBefore": ":,=}]\"' \n\t",
-	// symbols that are auto closed when typing
-	// symbols that can be used to surround a selection
 	"surroundingPairs": [
 		["{", "}"],
 		["[", "]"],

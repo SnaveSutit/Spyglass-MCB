@@ -79,6 +79,13 @@
     "mcfunction"
   ],
   "contributes": {
+    "themes": [
+      {
+        "label": "GDScript 2",
+        "uiTheme": "vs-dark",
+        "path": "./themes/godot-fix.json"
+      }
+    ],
     "jsonValidation": [
       {
         "fileMatch": [

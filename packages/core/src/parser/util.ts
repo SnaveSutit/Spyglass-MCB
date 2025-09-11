@@ -103,6 +103,7 @@ export function sequence(
 			children: [],
 			range: Range.create(src),
 		}
+		ctx.logger.log('core.sequence: Start new sequence')
 
 		for (const [i, p] of parsers.entries()) {
 			const parser = typeof p === 'function' ? p : p.get(ans)
@@ -110,23 +111,48 @@ export function sequence(
 				continue
 			}
 
-			if (i > 0 && parseGap) {
-				ans.children.push(...parseGap(src, ctx))
+			const start = src.cursor
+			ctx.logger.log(`\t- Parsing next node at ${src.getLineAndColumn().join(':')}`)
+			const result = parser(src, ctx)
+
+			if (result === Failure) {
+				ctx.logger.log(
+					`\t- Exiting sequence on failed parse: ${
+						ctx.err.errors.at(-1)?.message || Failure.toString()
+					}`,
+				)
+				return Failure
+			} else if (SequenceUtil.is(result)) {
+				ctx.logger.log(
+					`\t- Flattening ${result.children.length} sub-sequence children into this sequence`,
+				)
+				ans.children.push(...result.children)
+			} else if (result !== undefined) {
+				ctx.logger.log(
+					`\t- Adding result to sequence: "${result.type}": "${src.slice(result)}"`,
+				)
+				ans.children.push(result)
+			} else { // FIXME: Remove this branch after the parser is stable
+				ctx.logger.log(`\t- Parser returned 'undefined'`)
 			}
 
-			const result = parser(src, ctx)
-			if (result === Failure) {
-				return Failure
-			} else if (result === undefined) {
-				continue
-			} else if (SequenceUtil.is(result)) {
-				ans.children.push(...result.children)
-			} else {
-				ans.children.push(result)
+			if (
+				parseGap
+				// If the parser didn't move the cursor, and returns undefined, calling parseGap is redundant.
+				&& src.cursor !== start && result !== undefined
+				// Don't run parseGap after the last parser.
+				&& i < parsers.length - 1
+			) {
+				ctx.logger.log(`\t- Parsing gap at ${src.getLineAndColumn().join(':')}`)
+				ans.children.push(...parseGap(src, ctx))
 			}
 		}
 
 		ans.range.end = src.cursor
+
+		ctx.logger.log(
+			`\t- Finished sequence successfully with ${ans.children.length} children`,
+		)
 
 		return ans
 	}

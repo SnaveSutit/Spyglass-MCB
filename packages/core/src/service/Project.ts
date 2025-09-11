@@ -25,10 +25,10 @@ import {
 	LinterContext,
 	ParserContext,
 	UriBinderContext,
+	UriPredicateContext,
 } from './Context.js'
 import type { Dependency } from './Dependency.js'
 import { DependencyKey } from './Dependency.js'
-import { Downloader } from './Downloader.js'
 import { LinterErrorReporter } from './ErrorReporter.js'
 import { ArchiveUriSupporter, FileService, FileUriSupporter } from './FileService.js'
 import type { RootUriString } from './fileUtil.js'
@@ -42,7 +42,6 @@ export type ProjectInitializerContext = Pick<
 	Project,
 	| 'cacheRoot'
 	| 'config'
-	| 'downloader'
 	| 'externals'
 	| 'isDebugging'
 	| 'logger'
@@ -62,7 +61,6 @@ export type ProjectInitializer = SyncProjectInitializer | AsyncProjectInitialize
 export interface ProjectOptions {
 	cacheRoot: RootUriString
 	defaultConfig?: Config
-	downloader?: Downloader
 	externals: Externals
 	fs?: FileService
 	initializers?: readonly ProjectInitializer[]
@@ -103,7 +101,6 @@ export type ProjectData = Pick<
 	Project,
 	| 'cacheRoot'
 	| 'config'
-	| 'downloader'
 	| 'ensureBindingStarted'
 	| 'externals'
 	| 'fs'
@@ -181,7 +178,6 @@ export class Project implements ExternalEventEmitter {
 	}
 
 	config!: Config
-	readonly downloader: Downloader
 	readonly externals: Externals
 	readonly fs: FileService
 	readonly isDebugging: boolean
@@ -287,10 +283,7 @@ export class Project implements ExternalEventEmitter {
 	 * are not loaded into the memory.
 	 */
 	getTrackedFiles(): string[] {
-		const extensions: string[] = this.meta.getSupportedFileExtensions()
-		this.logger.info(`[Project#getTrackedFiles] Supported file extensions: ${extensions}`)
 		const supportedFiles = [...this.#dependencyFiles ?? [], ...this.#watchedFiles]
-			.filter((file) => extensions.includes(fileUtil.extname(file) ?? ''))
 		this.logger.info(
 			`[Project#getTrackedFiles] Listed ${supportedFiles.length} supported files`,
 		)
@@ -301,7 +294,6 @@ export class Project implements ExternalEventEmitter {
 		{
 			cacheRoot,
 			defaultConfig,
-			downloader,
 			externals,
 			fs = FileService.create(externals, cacheRoot),
 			initializers = [],
@@ -323,7 +315,6 @@ export class Project implements ExternalEventEmitter {
 
 		this.cacheService = new CacheService(cacheRoot, this)
 		this.#configService = new ConfigService(this, defaultConfig)
-		this.downloader = downloader ?? new Downloader(cacheRoot, externals, logger)
 		this.symbols = new SymbolUtil({}, externals.event.EventEmitter)
 
 		this.#ctx = {}
@@ -396,7 +387,6 @@ export class Project implements ExternalEventEmitter {
 			const initCtx: ProjectInitializerContext = {
 				cacheRoot: this.cacheRoot,
 				config: this.config,
-				downloader: this.downloader,
 				externals: this.externals,
 				isDebugging: this.isDebugging,
 				logger: this.logger,
@@ -436,32 +426,34 @@ export class Project implements ExternalEventEmitter {
 
 	private setReadyPromise(): void {
 		const getDependencies = async () => {
-			const ans: Dependency[] = []
-			for (const dependency of this.config.env.dependencies) {
-				if (DependencyKey.is(dependency)) {
-					const provider = this.meta.getDependencyProvider(dependency)
-					if (provider) {
-						try {
-							ans.push(await provider())
-							this.logger.info(
-								`[Project] [getDependencies] Executed provider “${dependency}”`,
-							)
-						} catch (e) {
-							this.logger.error(
-								`[Project] [getDependencies] Bad provider “${dependency}”`,
-								e,
-							)
+			const dependencies: Dependency[] = []
+			for (const input of this.config.env.dependencies) {
+				try {
+					if (DependencyKey.is(input)) {
+						const provider = this.meta.getDependencyProvider(input)
+						if (!provider) {
+							throw new Error(`No provider for ${input}`)
 						}
-					} else {
-						this.logger.error(
-							`[Project] [getDependencies] Bad dependency “${dependency}”: no associated provider`,
+
+						dependencies.push(await provider())
+						this.logger.info(
+							`[Project] [getDependencies] Executed provider “${input}”`,
 						)
+					} else {
+						const stats = await this.externals.fs.stat(input)
+						if (stats.isDirectory()) {
+							dependencies.push({ type: 'directory', uri: input })
+						} else if (stats.isFile()) {
+							dependencies.push({ type: 'tarball-file', uri: input })
+						} else {
+							throw new Error('Unsupported file entry type')
+						}
 					}
-				} else {
-					ans.push({ uri: dependency })
+				} catch (e) {
+					this.logger.error(`[Project] [getDependencies] Bad dependency “${input}”`, e)
 				}
 			}
-			return ans
+			return dependencies
 		}
 		const listDependencyFiles = async () => {
 			const dependencies = await getDependencies()
@@ -525,7 +517,8 @@ export class Project implements ExternalEventEmitter {
 
 			await Promise.all([listDependencyFiles(), listProjectFiles()])
 
-			this.#dependencyFiles = new Set(this.fs.listFiles())
+			this.#dependencyFiles = new Set([...this.fs.listFiles()]
+				.filter((uri) => !this.shouldExclude(uri)))
 			this.#dependencyRoots = new Set(this.fs.listRoots())
 
 			this.updateRoots()
@@ -659,13 +652,9 @@ export class Project implements ExternalEventEmitter {
 		this.#textDocumentCache.delete(uri)
 	}
 	private async read(uri: string): Promise<TextDocument | undefined> {
-		const getLanguageID = (uri: string): string => {
-			const ext = fileUtil.extname(uri) ?? '.plaintext'
-			return this.meta.getLanguageID(ext) ?? ext.slice(1)
-		}
 		const createTextDocument = async (uri: string): Promise<TextDocument | undefined> => {
-			const languageId = getLanguageID(uri)
-			if (!this.meta.isSupportedLanguage(languageId)) {
+			const languageId = this.guessLanguageID(uri)
+			if (!this.isSupportedLanguage(uri, languageId)) {
 				return undefined
 			}
 
@@ -872,10 +861,10 @@ export class Project implements ExternalEventEmitter {
 		content: string,
 	): Promise<void> {
 		uri = this.normalizeUri(uri)
-		if (!fileUtil.isFileUri(uri)) {
-			return // We only accept `file:` scheme for client-managed URIs.
+		if (uri.startsWith(ArchiveUriSupporter.Protocol)) {
+			return // We do not accept `archive:` scheme for client-managed URIs.
 		}
-		if (this.shouldExclude(uri)) {
+		if (this.shouldExclude(uri, languageID)) {
 			return
 		}
 		const doc = TextDocument.create(uri, languageID, version, content)
@@ -899,17 +888,16 @@ export class Project implements ExternalEventEmitter {
 	): Promise<void> {
 		uri = this.normalizeUri(uri)
 		this.#symbolUpToDateUris.delete(uri)
-		if (!fileUtil.isFileUri(uri)) {
-			return // We only accept `file:` scheme for client-managed URIs.
-		}
-		if (this.shouldExclude(uri)) {
-			return
+		if (uri.startsWith(ArchiveUriSupporter.Protocol)) {
+			return // We do not accept `archive:` scheme for client-managed URIs.
 		}
 		const doc = this.#clientManagedDocAndNodes.get(uri)?.doc
-		if (!doc) {
-			throw new Error(
-				`TextDocument for ${uri} is not cached. This should not happen. Did the language client send a didChange notification without sending a didOpen one, or is there a logic error on our side resulting the 'read' function overriding the 'TextDocument' created in the 'didOpen' notification handler?`,
-			)
+		if (!doc || this.shouldExclude(uri, doc.languageId)) {
+			// If doc is undefined, it means the document was previously excluded by onDidOpen()
+			// based on the language ID supplied by the client, in which case we should return early.
+			// Otherwise, we perform the shouldExclude() check with the URI and the saved language ID
+			// as usual.
+			return
 		}
 		TextDocument.update(doc, changes, version)
 		const node = this.parse(doc)
@@ -925,8 +913,8 @@ export class Project implements ExternalEventEmitter {
 	 */
 	onDidClose(uri: string): void {
 		uri = this.normalizeUri(uri)
-		if (!fileUtil.isFileUri(uri)) {
-			return // We only accept `file:` scheme for client-managed URIs.
+		if (uri.startsWith(ArchiveUriSupporter.Protocol)) {
+			return // We do not accept `archive:` scheme for client-managed URIs.
 		}
 		this.#clientManagedUris.delete(uri)
 		this.#clientManagedDocAndNodes.delete(uri)
@@ -967,7 +955,38 @@ export class Project implements ExternalEventEmitter {
 		}
 	}
 
-	public shouldExclude(uri: string): boolean {
+	/**
+	 * Returns true iff the URI should be excluded from all Spyglass language support.
+	 *
+	 * @param language Optional. If ommitted, a language will be derived from the URI according to
+	 *                 its file extension.
+	 */
+	public shouldExclude(uri: string, language?: string): boolean {
+		return !this.isSupportedLanguage(uri, language) || this.isUserExcluded(uri)
+	}
+
+	private isSupportedLanguage(uri: string, language?: string): boolean {
+		language ??= this.guessLanguageID(uri)
+
+		const languageOptions = this.meta.getLanguageOptions(language)
+		if (!languageOptions) {
+			// Unsupported language.
+			return false
+		}
+
+		const { uriPredicate } = languageOptions
+		return uriPredicate?.(uri, UriPredicateContext.create(this)) ?? true
+	}
+
+	/**
+	 * Guess a language ID from a URI. The guessed language ID may or may not actually be supported.
+	 */
+	private guessLanguageID(uri: string): string {
+		const ext = fileUtil.extname(uri) ?? '.spyglassmc-unknown'
+		return this.meta.getLanguageID(ext) ?? ext.slice(1)
+	}
+
+	private isUserExcluded(uri: string): boolean {
 		if (this.config.env.exclude.length === 0) {
 			return false
 		}

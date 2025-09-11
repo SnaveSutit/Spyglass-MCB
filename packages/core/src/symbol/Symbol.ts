@@ -27,9 +27,13 @@ export const RegistryCategories = Object.freeze(
 		'consume_effect_type',
 		'creative_mode_tab',
 		'custom_stat',
+		'data_component_predicate_type',
 		'data_component_type',
 		'decorated_pot_pattern',
 		'decorated_pot_patterns', // Removed
+		'dialog_action_type',
+		'dialog_body_type',
+		'dialog_type',
 		'enchantment_effect_component_type',
 		'enchantment_entity_effect_type',
 		'enchantment_level_based_value_type',
@@ -42,10 +46,11 @@ export const RegistryCategories = Object.freeze(
 		'fluid',
 		'game_event',
 		'height_provider_type',
+		'input_control_type',
 		'instrument',
 		'int_provider_type',
 		'item',
-		'item_sub_predicate_type',
+		'item_sub_predicate_type', // Removed
 		'loot_condition_type',
 		'loot_function_type',
 		'loot_nbt_provider_type',
@@ -73,11 +78,13 @@ export const RegistryCategories = Object.freeze(
 		'sensor_type',
 		'slot_display',
 		'sound_event',
+		'spawn_condition_type',
 		'stat_type',
 		'test_environment_definition_type',
 		'test_function',
 		'test_instance_type',
 		'trigger_type',
+		'ticket_type',
 		'villager_profession',
 		'villager_type',
 		'worldgen/biome_source',
@@ -116,7 +123,10 @@ export const NormalFileCategories = Object.freeze(
 		'banner_pattern',
 		'cat_variant',
 		'chat_type',
+		'chicken_variant',
+		'cow_variant',
 		'damage_type',
+		'dialog',
 		'dimension',
 		'dimension_type',
 		'enchantment',
@@ -137,6 +147,7 @@ export const NormalFileCategories = Object.freeze(
 		'trial_spawner',
 		'trim_material',
 		'trim_pattern',
+		'wolf_sound_variant',
 		'wolf_variant',
 	] as const,
 )
@@ -236,6 +247,7 @@ export const AssetsFileCategories = Object.freeze(
 		'sounds', // sounds.json
 		'texture',
 		'texture_meta', // *.png.mcmeta
+		'waypoint_style',
 	] as const,
 )
 export type AssetsFileCategory = (typeof AssetsFileCategories)[number]

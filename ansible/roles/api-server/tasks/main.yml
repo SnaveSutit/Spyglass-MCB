@@ -4,6 +4,7 @@
     name: '@spyglassmc/web-api-server'
     global: true
     state: latest
+  notify: Restart API server service
 
 - name: Create user
   become: true
@@ -26,9 +27,10 @@
   ansible.builtin.template:
     src: start.sh
     dest: /var/lib/api-server/start.sh
-    owner: api-server
-    group: api-server
+    owner: root
+    group: root
     mode: '700'
+  notify: Restart API server service
 
 - name: Create service
   become: true

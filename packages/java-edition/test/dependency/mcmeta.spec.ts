@@ -5,14 +5,9 @@ import { describe, it } from 'mocha'
 import * as path from 'path'
 import snapshot from 'snap-shot-it'
 import url from 'url'
-import type { PackMcmeta } from '../../lib/dependency/common.js'
+import type { PackInfo, PackMcmeta } from '../../lib/dependency/common.js'
 import type { McmetaRegistries, McmetaStates, McmetaVersions } from '../../lib/dependency/mcmeta.js'
-import {
-	Fluids,
-	getMcmetaSummaryUris,
-	resolveConfiguredVersion,
-	symbolRegistrar,
-} from '../../lib/dependency/mcmeta.js'
+import { Fluids, resolveConfiguredVersion, symbolRegistrar } from '../../lib/dependency/mcmeta.js'
 
 function readJsonSync(path: string): unknown {
 	return JSON.parse(fs.readFileSync(path, 'utf-8'))
@@ -41,8 +36,8 @@ const Fixtures = {
 
 describe('mcmeta', () => {
 	describe('resolveConfiguredVersion()', () => {
-		const suites: { version: string; packMcmeta?: PackMcmeta | undefined }[] = [
-			{ version: 'Auto', packMcmeta: { pack: { pack_format: 6 } } },
+		const suites: { version: string; packs?: PackInfo[] | undefined }[] = [
+			{ version: 'Auto', packs: [{ type: 'data', format: 6, packRoot: 'file:///pack.mcmeta' }] },
 			{ version: 'Latest Release' },
 			{ version: 'Latest Snapshot' },
 			{ version: 'unknown' },
@@ -50,30 +45,14 @@ describe('mcmeta', () => {
 			{ version: '22w03a' },
 			{ version: '1.16.5' },
 		]
-		for (const { version, packMcmeta } of suites) {
+		for (const { version, packs } of suites) {
 			it(`Should resolve "${version}"`, async () => {
 				const actual = resolveConfiguredVersion(
 					version,
 					Fixtures.Versions,
-					packMcmeta,
-					undefined,
+					packs ?? [],
 					console,
 				)
-				snapshot(actual)
-			})
-		}
-	})
-
-	describe('getMcmetaSummaryUris()', () => {
-		const cases: { version: string; isLatest: boolean; source: string }[] = [
-			{ version: '1.17', isLatest: false, source: 'GitHub' },
-			{ version: '22w03a', isLatest: true, source: 'GitHub' },
-			{ version: '1.17', isLatest: false, source: 'jsDelivr' },
-			{ version: '22w03a', isLatest: true, source: 'jsDelivr' },
-		]
-		for (const { version, isLatest, source } of cases) {
-			it(`Should return correctly for "${version}" (${isLatest}) from "${source}"`, async () => {
-				const actual = getMcmetaSummaryUris(version, isLatest, source)
 				snapshot(actual)
 			})
 		}

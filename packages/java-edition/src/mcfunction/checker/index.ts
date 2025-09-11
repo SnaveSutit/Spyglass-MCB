@@ -140,7 +140,7 @@ const itemPredicate: core.SyncChecker<ItemPredicateNode> = (node, ctx) => {
 			} else if (ComponentTestExactNode.is(test) && test.value) {
 				nbt.checker.index('minecraft:data_component', key)(test.value, ctx)
 			} else if (ComponentTestSubpredicateNode.is(test) && test.value) {
-				nbt.checker.index('minecraft:item_sub_predicate', key)(test.value, ctx)
+				nbt.checker.index('minecraft:data_component_predicate', key)(test.value, ctx)
 			}
 		}
 	}

@@ -1,29 +1,59 @@
-import chalk from 'chalk'
+import { Mutex } from 'async-mutex'
 import { createHmac, timingSafeEqual } from 'crypto'
 import type { NextFunction, Request, Response } from 'express'
 import fs from 'fs/promises'
 import path from 'path'
-import { RateLimiterMemory, RateLimiterRes } from 'rate-limiter-flexible'
+import type { Logger } from 'pino'
 import simpleGit from 'simple-git'
 import type { SimpleGit } from 'simple-git'
+import { Transform } from 'stream'
+
+const gitMutex = new Mutex()
+
+interface Config {
+	bunnyCdnApiKey: string
+	bunnyCdnPullZoneId: string
+	discordLogWebhook?: string
+	dir: string
+	webhookSecret: string
+	port?: number
+	[key: string]: string | number | undefined
+}
 
 export function loadConfig() {
-	if (
-		!(process.env.SPYGLASSMC_API_SERVER_DIR && process.env.SPYGLASSMC_API_SERVER_WEBHOOK_SECRET)
-	) {
+	const PREFIX = 'SPYGLASSMC_API_SERVER_'
+	const REQUIRED = ['bunnyCdnApiKey', 'bunnyCdnPullZoneId', 'dir', 'webhookSecret'] as const
+
+	const config = Object.create(null) as Config
+
+	for (const [k, v] of Object.entries(process.env)) {
+		if (k.startsWith(PREFIX)) {
+			const camelKey = k
+				.slice(PREFIX.length)
+				.toLowerCase()
+				.replace(/(_)(\w)/g, ([_, c]) => c.toUpperCase())
+			config[camelKey] = v
+		}
+	}
+
+	const missing = REQUIRED.filter(k => !(k in config))
+	if (missing.length) {
 		throw new Error(
-			'Expected environmental variable SPYGLASSMC_API_SERVER_DIR, SPYGLASSMC_API_SERVER_WEBHOOK_SECRET',
+			`Expected environmental variables: ${
+				missing
+					.map(camelKey => PREFIX + camelKey.replace(/([A-Z])/g, '_$1').toUpperCase())
+					.join(', ')
+			}`,
 		)
 	}
-	const hookSecret = process.env.SPYGLASSMC_API_SERVER_WEBHOOK_SECRET
-	const rootDir = path.resolve(process.env.SPYGLASSMC_API_SERVER_DIR)
-	const port = parseInt(process.env.SPYGLASSMC_API_SERVER_PORT ?? '3003')
-	return { hookSecret, port, rootDir }
+
+	config.port = Number(config.port ?? 3003)
+
+	return config
 }
 
 export async function assertRootDir(rootDir: string) {
 	try {
-		console.info(chalk.blue(`Root dir: ${rootDir}`))
 		const result = await fs.stat(rootDir)
 		if (!result.isDirectory()) {
 			throw new Error('Not a directory')
@@ -42,6 +72,15 @@ async function doesPathExist(path: string) {
 	}
 }
 
+function createErrorStream(logger: Logger) {
+	return new Transform({
+		transform(chunk, _encoding, callback) {
+			logger.error(chunk.toString().trimEnd())
+			callback()
+		},
+	})
+}
+
 const defaultOutputHandler = (
 	_command: string,
 	_stdout: NodeJS.ReadableStream,
@@ -54,7 +93,7 @@ const defaultOutputHandler = (
  * Ensures the local git repositories exist and returns a simple-git instance, a mutex, and the
  * directory path for each of the local repos.
  */
-export async function initGitRepos(rootDir: string) {
+export async function initGitRepos(logger: Logger, rootDir: string) {
 	const gitCloner = simpleGit({})
 		.outputHandler((_command, stdout, stderr) => {
 			stdout.pipe(process.stdout)
@@ -63,25 +102,38 @@ export async function initGitRepos(rootDir: string) {
 
 	async function initGitRepo(owner: string, repo: string) {
 		const repoDir = path.join(rootDir, repo)
+		const repoGit = simpleGit({ baseDir: repoDir }).outputHandler(defaultOutputHandler)
 		if (await doesPathExist(repoDir)) {
-			console.info(chalk.green(`Repo ${owner}/${repo} already cloned.`))
+			logger.debug({ owner, repo }, 'Already cloned')
+			await updateGitRepo(logger, repo, repoGit)
 		} else {
-			console.info(chalk.yellow(`Cloning ${owner}/${repo}...`))
+			logger.debug({ owner, repo }, 'Cloning...')
 			await gitCloner.clone(
 				`git@github.com:${owner}/${repo}.git`,
 				path.join(rootDir, repo),
 				['--mirror', '--progress'],
 			)
-			console.info(chalk.green(`Repo ${owner}/${repo} cloned.`))
+			// Make sure 'git repack' doesn't take up all RAM for mcmeta.
+			// https://stackoverflow.com/a/4829883
+			await gitCloner.addConfig('pack.windowMemory', '10m')
+			await gitCloner.addConfig('pack.packSizeLimit', '20m')
+			logger.debug({ owner, repo }, 'Cloned')
 		}
-
-		return simpleGit({ baseDir: repoDir }).outputHandler(defaultOutputHandler)
+		return repoGit
 	}
 
 	return {
 		mcmeta: await initGitRepo('misode', 'mcmeta'),
-		mcdoc: await initGitRepo('SpyglassMC', 'vanilla-mcdoc'),
+		'vanilla-mcdoc': await initGitRepo('SpyglassMC', 'vanilla-mcdoc'),
 	}
+}
+
+export async function updateGitRepo(logger: Logger, name: string, git: SimpleGit) {
+	await gitMutex.runExclusive(async () => {
+		logger.debug({ repo: name }, 'Updating...')
+		await git.remote(['update', '--prune'])
+		logger.debug({ repo: name }, 'Updated')
+	})
 }
 
 export async function sendGitFile(
@@ -100,11 +152,10 @@ export async function sendGitFile(
 	res.setHeader('ETag', etag)
 	if (req.headers['if-none-match'] === etag) {
 		res.status(304).end()
-		await rateLimiter.reward(req.ip!, CHEAP_REQUEST_POINTS)
 	} else {
 		git.outputHandler((_command, stdout, stderr) => {
 			stdout.pipe(res)
-			stderr.pipe(process.stderr)
+			stderr.pipe(createErrorStream(req.log))
 		})
 		try {
 			await git.show(`${branch}:${path}`)
@@ -127,13 +178,12 @@ export async function sendGitTarball(
 	res.setHeader('ETag', etag)
 	if (req.headers['if-none-match'] === etag) {
 		res.status(304).end()
-		await rateLimiter.reward(req.ip!, EXPENSIVE_REQUEST_POINTS)
 	} else {
 		res.contentType('application/gzip')
 		res.appendHeader('Content-Disposition', `attachment; filename="${fileName}.tar.gz"`)
 		git.outputHandler((_command, stdout, stderr) => {
 			stdout.pipe(res)
-			stderr.pipe(process.stderr)
+			stderr.pipe(createErrorStream(req.log))
 		})
 		try {
 			await git.raw(['archive', '--format=tar.gz', branch])
@@ -143,13 +193,18 @@ export async function sendGitTarball(
 	}
 }
 
-export function verifySignature(secret: string, payload: Buffer, signature: string) {
+export function verifySignature(
+	logger: Logger,
+	secret: string,
+	payload: Buffer,
+	signature: string,
+) {
 	try {
 		const actualSignature = createHmac('sha256', secret).update(payload).digest()
 		const givenSignature = Buffer.from(signature.replace(/^sha256=/, ''), 'hex')
 		return timingSafeEqual(actualSignature, givenSignature)
 	} catch (e: any) {
-		console.error(chalk.red('verifySignature', e.stack))
+		logger.warn('Failed signature verification')
 		return false
 	}
 }
@@ -164,32 +219,27 @@ export const userAgentEnforcer = (req: Request, res: Response, next: NextFunctio
 	}))
 }
 
-export const loggerMiddleware = (req: Request, res: Response, next: NextFunction) => {
-	const start = new Date()
-	console.info(
-		chalk.yellow(
-			`[${start.toISOString()}] ${req.method} ${req.path} by ${req.ip} - ${
-				req.headers['user-agent']
-			}...`,
-		),
-	)
-	res.on('finish', () => {
-		const end = new Date()
-		const message =
-			`[${end.toISOString()}] ${req.method} ${req.path} by ${req.ip} - ${res.statusCode} - ${
-				end.getTime() - start.getTime()
-			}ms`
-		console.info(res.statusCode < 400 ? chalk.green(message) : chalk.red(message))
-	})
-	next()
-}
-
-export const errorHandler = (err: Error, _req: Request, res: Response, next: NextFunction) => {
+export const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
+	req.log.error(err)
 	if (res.headersSent) {
 		return next(err)
 	}
-	console.error(chalk.red(err.stack))
 	res.status(500).send(JSON.stringify({ message: err.message }))
+}
+
+export async function purgeCdnCache(apiKey: string, pullZoneId: string) {
+	const uri = `https://api.bunny.net/pullzone/${pullZoneId}/purgeCache`
+	const response = await fetch(uri, {
+		method: 'POST',
+		headers: {
+			'AccessKey': apiKey,
+			'Accept': 'application/json',
+			'Content-Type': 'application/json',
+		},
+	})
+	if (!response.ok) {
+		throw new Error(`Error status: ${response.status} ${response.statusText}`)
+	}
 }
 
 export const getVersionValidator =
@@ -203,41 +253,6 @@ export const getVersionValidator =
 			res.status(404).send(JSON.stringify({ message: `Unknown version '${version}'` }))
 		}
 	}
-
-const rateLimiter = new RateLimiterMemory({
-	duration: 3600,
-	points: 100,
-})
-
-const getRateLimiter =
-	(points: number) => async (req: Request, res: Response, next: NextFunction) => {
-		res.appendHeader('RateLimit-Limit', '100')
-		try {
-			const result = await rateLimiter.consume(req.ip!, points)
-			res.appendHeader('RateLimit-Remaining', `${result.remainingPoints}`)
-			res.appendHeader(
-				'RateLimit-Reset',
-				`${new Date(Date.now() + result.msBeforeNext).toUTCString()}`,
-			)
-			next()
-		} catch (e) {
-			if (e instanceof RateLimiterRes) {
-				res.appendHeader('RateLimit-Remaining', `${e.remainingPoints}`)
-				res.appendHeader('Retry-After', `${Math.round(e.msBeforeNext / 1000)}`)
-			}
-			res.status(429).send(
-				JSON.stringify({
-					message: 'Too Many Requests. Check the RateLimit headers for details.',
-				}),
-			)
-		}
-	}
-
-const CHEAP_REQUEST_POINTS = 1
-const EXPENSIVE_REQUEST_POINTS = 5
-
-export const cheapRateLimiter = getRateLimiter(CHEAP_REQUEST_POINTS)
-export const expensiveRateLimiter = getRateLimiter(EXPENSIVE_REQUEST_POINTS)
 
 export class MemCache {
 	#versions: { id: string }[] | undefined

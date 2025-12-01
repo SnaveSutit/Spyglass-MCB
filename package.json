@@ -56,9 +56,10 @@
 		}
 	},
 	"devDependencies": {
+		"@dprint/win32-x64": "^0.50.2",
 		"@types/benchmark": "^2.1.2",
 		"@types/mocha": "^10.0.1",
-		"@types/node": "^18.16.3",
+		"@types/node": "^18.18.0",
 		"@types/snap-shot-core": "^10.2.0",
 		"@types/webpack": "^5.28.1",
 		"@typescript-eslint/eslint-plugin": "^7.9.0",

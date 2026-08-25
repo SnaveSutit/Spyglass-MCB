@@ -179,6 +179,9 @@ export interface MinecraftNbtTagArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:nbt_tag'
 	properties?: NbtParserProperties
 }
+export interface MinecraftNumberProviderArgumentTreeNode extends mcf.ArgumentTreeNode {
+	parser: 'minecraft:number_provider'
+}
 export interface MinecraftObjectiveArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:objective'
 }
@@ -312,6 +315,7 @@ export type ArgumentTreeNode =
 	| MinecraftNbtCompoundTagArgumentTreeNode
 	| MinecraftNbtPathArgumentTreeNode
 	| MinecraftNbtTagArgumentTreeNode
+	| MinecraftNumberProviderArgumentTreeNode
 	| MinecraftObjectiveArgumentTreeNode
 	| MinecraftObjectiveCriteriaArgumentTreeNode
 	| MinecraftOperationArgumentTreeNode

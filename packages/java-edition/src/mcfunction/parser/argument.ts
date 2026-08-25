@@ -233,6 +233,8 @@ export const argument: mcf.ArgumentParserGetter = (
 			return wrap(nbtPathParser(nbt.parser.path, treeNode.properties))
 		case 'minecraft:nbt_tag':
 			return wrap(nbtDispatchedParser(nbt.parser.entry, treeNode.properties))
+		case 'minecraft:number_provider':
+			return wrap(resourceOrInline('number_provider'))
 		case 'minecraft:objective':
 			return wrap(
 				objective(

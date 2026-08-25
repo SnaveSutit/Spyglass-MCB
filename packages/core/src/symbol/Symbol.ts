@@ -135,6 +135,7 @@ export const NormalFileCategories = Object.freeze(
 	[
 		'advancement',
 		'banner_pattern',
+		'block_transformer',
 		'cat_sound_variant',
 		'cat_variant',
 		'chat_type',

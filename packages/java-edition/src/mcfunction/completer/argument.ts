@@ -152,6 +152,8 @@ export const getMockNodes: mcf.completer.MockNodesGetter = (
 			return ResourceLocationNode.mock(range, { category: 'loot_table' })
 		case 'minecraft:mob_effect':
 			return ResourceLocationNode.mock(range, { category: 'mob_effect' })
+		case 'minecraft:number_provider':
+			return ResourceLocationNode.mock(range, { category: 'number_provider' })
 		case 'minecraft:objective':
 			return SymbolNode.mock(range, { category: 'objective' })
 		case 'minecraft:objective_criteria':

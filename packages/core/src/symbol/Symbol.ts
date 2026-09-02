@@ -187,6 +187,7 @@ export type NormalFileCategory = (typeof NormalFileCategories)[number]
 export const WorldgenFileCategories = Object.freeze(
 	[
 		'worldgen/biome',
+		'worldgen/block_state_provider',
 		'worldgen/carver',
 		'worldgen/configured_carver', // Removed
 		'worldgen/configured_feature', // Removed

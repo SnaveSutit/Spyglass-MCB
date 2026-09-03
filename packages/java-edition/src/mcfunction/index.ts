@@ -3,6 +3,7 @@ import * as mcf from '@spyglassmc/mcfunction'
 import { registerCustomResources } from '../binder/index.js'
 import type { McmetaCommands } from '../dependency/index.js'
 import { ReleaseVersion } from '../dependency/index.js'
+import * as mcbuild from '../mcbuild/index.js'
 import * as checker from './checker/index.js'
 import * as colorizer from './colorizer/index.js'
 import * as completer from './completer/index.js'
@@ -64,4 +65,10 @@ export const initialize = (
 
 	meta.registerInlayHintProvider(inlayHintProvider)
 	meta.registerSignatureHelpProvider(signatureHelpProvider(tree))
+
+	mcbuild.initialize(ctx, {
+		tree,
+		argument: parser.argument,
+		mcfunctionOptions,
+	})
 }

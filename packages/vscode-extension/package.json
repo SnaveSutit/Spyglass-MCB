@@ -423,6 +423,7 @@
   "activationEvents": [
     "workspaceContains:**/pack.mcmeta",
     "workspaceContains:**/*.mcdoc",
-    "workspaceContains:**/*.mcfunction"
+    "workspaceContains:**/*.mcfunction",
+    "workspaceContains:**/*.mcb"
   ]
 }

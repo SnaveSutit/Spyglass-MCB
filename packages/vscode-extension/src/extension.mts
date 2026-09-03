@@ -41,6 +41,8 @@ export async function activate(context: vsc.ExtensionContext) {
 
 	const documentSelector: lc.DocumentSelector = [
 		{ language: 'mcfunction' },
+		{ language: 'mc-build' },
+		{ language: 'mc-build-template' },
 		{ language: 'mcdoc' },
 		{ language: 'snbt' },
 		{ language: 'mcmeta' },

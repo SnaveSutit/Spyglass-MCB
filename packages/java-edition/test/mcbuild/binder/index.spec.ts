@@ -9,11 +9,14 @@ import {
 import * as core from '@spyglassmc/core'
 import { mockProjectData } from '@spyglassmc/core/test/utils.ts'
 import {
+	fileBase,
 	FUNCTION_CATEGORY,
 	getTemplateData,
 	register as registerBinder,
+	resolveFunctionId,
 	TEMPLATE_CATEGORY,
 } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
+import type { ReferenceNode } from '@spyglassmc/java-edition/lib/mcbuild/node/index.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -64,12 +67,86 @@ describe('mcbuild binder', () => {
 		])
 	})
 
-	it('registers dir-scoped function paths', () => {
+	it('registers dir-scoped function paths when the file is not under src/', () => {
 		const symbols = bind(
 			'file:///pack/data/p/main.mcb',
 			'dir features {\n\tfunction spawn {\n\t\tsay hi\n\t}\n}\nfunction root {\n}',
 		)
 		const fns = Object.keys(symbols.global[FUNCTION_CATEGORY] ?? {}).sort()
 		assert.deepEqual(fns, ['features/spawn', 'root'])
+	})
+
+	it('registers fully-qualified function ids for files under src/', () => {
+		const symbols = bind(
+			'file:///pack/src/main.mcb',
+			'dir features {\n\tfunction spawn {\n\t\tsay hi\n\t}\n}\nfunction root {\n}',
+		)
+		const fns = Object.keys(symbols.global[FUNCTION_CATEGORY] ?? {}).sort()
+		assert.deepEqual(fns, ['main:features/spawn', 'main:root'])
+	})
+
+	it('nests the file path into the id for a non-namespace-root file', () => {
+		const symbols = bind(
+			'file:///pack/src/foo/bar.mcb',
+			'function baz {\n\tsay hi\n}',
+		)
+		assert.ok(symbols.global[FUNCTION_CATEGORY]?.['foo:bar/baz'])
+	})
+
+	it('links a function call to its definition and back', () => {
+		const symbols = bind(
+			'file:///pack/src/main.mcb',
+			'function caller {\n\tfunction ./callee\n}\nfunction callee {\n\tsay hi\n}',
+		)
+		const symbol = symbols.global[FUNCTION_CATEGORY]?.['main:callee']
+		assert.ok(symbol, 'main:callee symbol should exist')
+		assert.equal(symbol.definition?.length, 1)
+		assert.equal(symbol.reference?.length, 1)
+		assert.equal(symbol.definition?.[0].uri, 'file:///pack/src/main.mcb')
+		assert.equal(symbol.reference?.[0].uri, 'file:///pack/src/main.mcb')
+	})
+
+	it('links schedule and tag-function references to the target function', () => {
+		const symbols = bind(
+			'file:///pack/src/main.mcb',
+			'function tick {\n\tschedule function ./tick 1t\n}\n'
+				+ 'tag function minecraft:tick {\n\t./tick\n}',
+		)
+		assert.equal(symbols.global[FUNCTION_CATEGORY]?.['main:tick']?.reference?.length, 2)
+	})
+})
+
+const ref = (scheme: ReferenceNode['scheme'], path: string): ReferenceNode => ({
+	type: 'mcbuild:reference',
+	range: core.Range.create(0),
+	scheme,
+	isTag: false,
+	path,
+})
+
+describe('mcbuild binder — reference resolution', () => {
+	it('derives namespace + base path from a src/ URI', () => {
+		assert.deepEqual(fileBase('file:///pack/src/main.mcb'), { namespace: 'main', path: [] })
+		assert.deepEqual(fileBase('file:///pack/src/foo/bar.mcb'), {
+			namespace: 'foo',
+			path: ['bar'],
+		})
+		assert.equal(fileBase('file:///pack/data/x/y.mcb'), undefined)
+	})
+
+	it('mirrors evaluateFunctionHandle for each reference scheme', () => {
+		const base = { namespace: 'main', path: [] as string[] }
+		assert.equal(resolveFunctionId(ref('relative', './dummy'), base, []), 'main:dummy')
+		assert.equal(resolveFunctionId(ref('relative', 'dummy'), base, []), 'main:dummy')
+		assert.equal(resolveFunctionId(ref('relative', '../a'), base, ['sub']), 'main:a')
+		assert.equal(resolveFunctionId(ref('relative', '../x'), base, []), undefined)
+		assert.equal(resolveFunctionId(ref('absolute', 'a/b'), base, []), 'main:a/b')
+		assert.equal(resolveFunctionId(ref('id', 'foo:bar/baz'), base, []), 'foo:bar/baz')
+		assert.equal(resolveFunctionId(ref('parent', ''), base, []), undefined)
+	})
+
+	it('resolves relative refs against the dir + file base', () => {
+		const base = { namespace: 'foo', path: ['bar'] }
+		assert.equal(resolveFunctionId(ref('relative', './x'), base, ['d']), 'foo:bar/d/x')
 	})
 })

@@ -267,4 +267,80 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			await project.close()
 		}
 	})
+
+	/** Completes at the `|` in file `open`. */
+	async function completeInProject(
+		files: Record<string, string>,
+		open: string,
+	): Promise<string[]> {
+		const marked = files[open]
+		const offset = marked.indexOf('|')
+		assert.notEqual(offset, -1, 'a file must contain the `|` cursor marker')
+		const clean = { ...files, [open]: marked.replace('|', '') }
+		const openUri = `${ProjectRoot}${open.replace(/^\/root\//, '')}`
+		const fsFiles = Object.fromEntries(
+			Object.entries(clean).map(([k, v]) => [k.startsWith('/') ? k : `/root/${k}`, v]),
+		)
+		fsFiles['/root/pack.mcmeta'] = JSON.stringify({
+			pack: { pack_format: 48, description: '' },
+		})
+		const { project } = await setup(fsFiles)
+		try {
+			await project.analyzeProject()
+			const text = clean[open]
+			await project.onDidOpen(openUri, 'mc-build', 1, text)
+			const docAndNode = await project.ensureClientManagedChecked(openUri)
+			assert.ok(docAndNode)
+			const items = coreCompleter.file(
+				docAndNode.node,
+				CompleterContext.create(project as never, { doc: docAndNode.doc, offset }),
+			)
+			return items.map((i) => i.label)
+		} finally {
+			await project.close()
+		}
+	}
+
+	it('completes `./` function-call targets from the same and sibling files', async () => {
+		const labels = await completeInProject({
+			'src/pack.mcb': 'function alpha {\n\tsay a\n}\nfunction caller {\n\tfunction ./|\n}\n',
+			'src/pack/util.mcb': 'function beta {\n\tsay b\n}\n',
+		}, 'src/pack.mcb')
+		assert.deepEqual(labels.sort(), ['./alpha', './caller', './util/beta'])
+	})
+
+	it('completes `./` targets inside a dir block, anchored at the dir', async () => {
+		const labels = await completeInProject({
+			'src/main.mcb':
+				'function root_fn {\n\tsay r\n}\ndir tools {\n\tfunction helper {\n\t\tsay h\n\t}\n\tfunction caller {\n\t\tfunction ./|\n\t}\n}\n',
+		}, 'src/main.mcb')
+		assert.deepEqual(labels.sort(), ['./caller', './helper'])
+	})
+
+	it('completes `./` targets inside an execute-run block and at end of file', async () => {
+		const inExec = await completeInProject({
+			'src/main.mcb':
+				'function alpha {\n\tsay a\n}\nfunction caller {\n\texecute as @s run {\n\t\tfunction ./|\n\t}\n}\n',
+		}, 'src/main.mcb')
+		assert.deepEqual(inExec.sort(), ['./alpha', './caller'])
+
+		const atEof = await completeInProject({
+			'src/main.mcb': 'function alpha {\n\tsay a\n}\nfunction caller {\n\tfunction ./|',
+		}, 'src/main.mcb')
+		assert.deepEqual(atEof.sort(), ['./alpha', './caller'])
+	})
+
+	it('completes `../` and `*` targets by their reachable spelling', async () => {
+		const up = await completeInProject({
+			'src/main.mcb':
+				'function alpha {\n\tsay a\n}\ndir d {\n\tfunction caller {\n\t\tfunction ../|\n\t}\n}\n',
+		}, 'src/main.mcb')
+		assert.deepEqual(up, ['../alpha'])
+
+		const abs = await completeInProject({
+			'src/main.mcb':
+				'function alpha {\n\tsay a\n}\ndir d {\n\tfunction caller {\n\t\tfunction *|\n\t}\n}\n',
+		}, 'src/main.mcb')
+		assert.deepEqual(abs.sort(), ['*alpha', '*d/caller'])
+	})
 })

@@ -77,9 +77,9 @@ export function resolveFunctionId(
 		case 'parent':
 			return undefined
 		case 'id':
-			return ref.path
+			return /^[^:]+:.+/.test(ref.path) ? ref.path : undefined
 		case 'absolute':
-			return `${base.namespace}:${ref.path}`
+			return ref.path.length > 0 ? `${base.namespace}:${ref.path}` : undefined
 		case 'relative': {
 			const anchor = [...base.path, ...dirStack]
 			const resolved: string[] = [...anchor]
@@ -93,7 +93,7 @@ export function resolveFunctionId(
 					resolved.push(segment)
 				}
 			}
-			return `${base.namespace}:${resolved.join('/')}`
+			return resolved.length > 0 ? `${base.namespace}:${resolved.join('/')}` : undefined
 		}
 		default:
 			return undefined

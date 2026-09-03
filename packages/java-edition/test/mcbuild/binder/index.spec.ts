@@ -149,4 +149,12 @@ describe('mcbuild binder — reference resolution', () => {
 		const base = { namespace: 'foo', path: ['bar'] }
 		assert.equal(resolveFunctionId(ref('relative', './x'), base, ['d']), 'foo:bar/d/x')
 	})
+
+	it('returns undefined for a target that collapses to nothing (incomplete `./`)', () => {
+		const base = { namespace: 'main', path: [] as string[] }
+		assert.equal(resolveFunctionId(ref('relative', './'), base, []), undefined)
+		assert.equal(resolveFunctionId(ref('relative', '.'), base, []), undefined)
+		assert.equal(resolveFunctionId(ref('absolute', ''), base, []), undefined)
+		assert.equal(resolveFunctionId(ref('id', 'nocolon'), base, []), undefined)
+	})
 })

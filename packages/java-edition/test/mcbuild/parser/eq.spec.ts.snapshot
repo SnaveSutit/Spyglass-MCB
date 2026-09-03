@@ -1,0 +1,2154 @@
+exports[`mcbuild parser (eq) > parse 'eq #a.b c = #d.e f + 2' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 38
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 38
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 38
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 36
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 23
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 21
+                        },
+                        "value": "#a.b"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 22,
+                          "end": 23
+                        },
+                        "value": "c"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 24,
+                      "end": 25
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_binary",
+                    "range": {
+                      "start": 26,
+                      "end": 36
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 26,
+                          "end": 32
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 26,
+                              "end": 30
+                            },
+                            "value": "#d.e"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 31,
+                              "end": 32
+                            },
+                            "value": "f"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 33,
+                          "end": 34
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_literal",
+                        "range": {
+                          "start": 35,
+                          "end": 36
+                        },
+                        "value": 2
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq a b = 1' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 26
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 26
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 26
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 24
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 20
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 18
+                        },
+                        "value": "a"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 19,
+                          "end": 20
+                        },
+                        "value": "b"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 21,
+                      "end": 22
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_literal",
+                    "range": {
+                      "start": 23,
+                      "end": 24
+                    },
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq a b = a d + 7 * (2 * c e + 3 * f g)' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 54
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 54
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 54
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 51
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 20
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 18
+                        },
+                        "value": "a"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 19,
+                          "end": 20
+                        },
+                        "value": "b"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 21,
+                      "end": 22
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_binary",
+                    "range": {
+                      "start": 23,
+                      "end": 51
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 23,
+                          "end": 26
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 23,
+                              "end": 24
+                            },
+                            "value": "a"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 25,
+                              "end": 26
+                            },
+                            "value": "d"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 27,
+                          "end": 28
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_binary",
+                        "range": {
+                          "start": 29,
+                          "end": 51
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:eq_literal",
+                            "range": {
+                              "start": 29,
+                              "end": 30
+                            },
+                            "value": 7
+                          },
+                          {
+                            "type": "mcbuild:eq_operator",
+                            "range": {
+                              "start": 31,
+                              "end": 32
+                            }
+                          },
+                          {
+                            "type": "mcbuild:eq_binary",
+                            "range": {
+                              "start": 34,
+                              "end": 51
+                            },
+                            "children": [
+                              {
+                                "type": "mcbuild:eq_binary",
+                                "range": {
+                                  "start": 34,
+                                  "end": 41
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcbuild:eq_literal",
+                                    "range": {
+                                      "start": 34,
+                                      "end": 35
+                                    },
+                                    "value": 2
+                                  },
+                                  {
+                                    "type": "mcbuild:eq_operator",
+                                    "range": {
+                                      "start": 36,
+                                      "end": 37
+                                    }
+                                  },
+                                  {
+                                    "type": "mcbuild:eq_operand",
+                                    "range": {
+                                      "start": 38,
+                                      "end": 41
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "mcbuild:identifier",
+                                        "range": {
+                                          "start": 38,
+                                          "end": 39
+                                        },
+                                        "value": "c"
+                                      },
+                                      {
+                                        "type": "mcbuild:identifier",
+                                        "range": {
+                                          "start": 40,
+                                          "end": 41
+                                        },
+                                        "value": "e"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "mcbuild:eq_operator",
+                                "range": {
+                                  "start": 42,
+                                  "end": 43
+                                }
+                              },
+                              {
+                                "type": "mcbuild:eq_binary",
+                                "range": {
+                                  "start": 44,
+                                  "end": 51
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcbuild:eq_literal",
+                                    "range": {
+                                      "start": 44,
+                                      "end": 45
+                                    },
+                                    "value": 3
+                                  },
+                                  {
+                                    "type": "mcbuild:eq_operator",
+                                    "range": {
+                                      "start": 46,
+                                      "end": 47
+                                    }
+                                  },
+                                  {
+                                    "type": "mcbuild:eq_operand",
+                                    "range": {
+                                      "start": 48,
+                                      "end": 51
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "mcbuild:identifier",
+                                        "range": {
+                                          "start": 48,
+                                          "end": 49
+                                        },
+                                        "value": "f"
+                                      },
+                                      {
+                                        "type": "mcbuild:identifier",
+                                        "range": {
+                                          "start": 50,
+                                          "end": 51
+                                        },
+                                        "value": "g"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq constTarget points = 42' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 42
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 42
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 42
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 40
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 35
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 28
+                        },
+                        "value": "constTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 29,
+                          "end": 35
+                        },
+                        "value": "points"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 36,
+                      "end": 37
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_literal",
+                    "range": {
+                      "start": 38,
+                      "end": 40
+                    },
+                    "value": 42
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq copyTarget data = copySource data' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 52
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 52
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 52
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 50
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 32
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 27
+                        },
+                        "value": "copyTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 28,
+                          "end": 32
+                        },
+                        "value": "data"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 33,
+                      "end": 34
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 35,
+                      "end": 50
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 35,
+                          "end": 45
+                        },
+                        "value": "copySource"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 46,
+                          "end": 50
+                        },
+                        "value": "data"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq decrementTarget counter -= 3' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 47
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 47
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 47
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 45
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 40
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 32
+                        },
+                        "value": "decrementTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 33,
+                          "end": 40
+                        },
+                        "value": "counter"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 41,
+                      "end": 43
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_literal",
+                    "range": {
+                      "start": 44,
+                      "end": 45
+                    },
+                    "value": 3
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq divideTarget stat /= divisor stat' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 52
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 52
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 52
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 50
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 34
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 29
+                        },
+                        "value": "divideTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 30,
+                          "end": 34
+                        },
+                        "value": "stat"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 35,
+                      "end": 37
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 38,
+                      "end": 50
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 38,
+                          "end": 45
+                        },
+                        "value": "divisor"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 46,
+                          "end": 50
+                        },
+                        "value": "stat"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq divisionExprTarget stat = h i / divisor stat' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 63
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 63
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 63
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 61
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 40
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 35
+                        },
+                        "value": "divisionExprTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 36,
+                          "end": 40
+                        },
+                        "value": "stat"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 41,
+                      "end": 42
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_binary",
+                    "range": {
+                      "start": 43,
+                      "end": 61
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 43,
+                          "end": 46
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 43,
+                              "end": 44
+                            },
+                            "value": "h"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 45,
+                              "end": 46
+                            },
+                            "value": "i"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 47,
+                          "end": 48
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 49,
+                          "end": 61
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 49,
+                              "end": 56
+                            },
+                            "value": "divisor"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 57,
+                              "end": 61
+                            },
+                            "value": "stat"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq moduloBinaryTarget stat = h i % divisor stat' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 63
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 63
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 63
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 61
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 40
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 35
+                        },
+                        "value": "moduloBinaryTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 36,
+                          "end": 40
+                        },
+                        "value": "stat"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 41,
+                      "end": 42
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_binary",
+                    "range": {
+                      "start": 43,
+                      "end": 61
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 43,
+                          "end": 46
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 43,
+                              "end": 44
+                            },
+                            "value": "h"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 45,
+                              "end": 46
+                            },
+                            "value": "i"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 47,
+                          "end": 48
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 49,
+                          "end": 61
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 49,
+                              "end": 56
+                            },
+                            "value": "divisor"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 57,
+                              "end": 61
+                            },
+                            "value": "stat"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq moduloTarget stat %= 5' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 41
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 41
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 41
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 39
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 34
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 29
+                        },
+                        "value": "moduloTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 30,
+                          "end": 34
+                        },
+                        "value": "stat"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 35,
+                      "end": 37
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_literal",
+                    "range": {
+                      "start": 38,
+                      "end": 39
+                    },
+                    "value": 5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq negateTarget main = -(negSource value)' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 57
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 57
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 57
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 54
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 34
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 29
+                        },
+                        "value": "negateTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 30,
+                          "end": 34
+                        },
+                        "value": "main"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 35,
+                      "end": 36
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_unary",
+                    "range": {
+                      "start": 37,
+                      "end": 54
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 37,
+                          "end": 38
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 39,
+                          "end": 54
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 39,
+                              "end": 48
+                            },
+                            "value": "negSource"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 49,
+                              "end": 54
+                            },
+                            "value": "value"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq selectorTarget stat += @s ticker' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 51
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 51
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 51
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 49
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 36
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 31
+                        },
+                        "value": "selectorTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 32,
+                          "end": 36
+                        },
+                        "value": "stat"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 37,
+                      "end": 39
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_selector_operand",
+                    "range": {
+                      "start": 40,
+                      "end": 49
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_selector",
+                        "range": {
+                          "start": 40,
+                          "end": 42
+                        }
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 43,
+                          "end": 49
+                        },
+                        "value": "ticker"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq selfTarget main = selfTarget main + otherTarget alt * 2' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 74
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 74
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 74
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 72
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 32
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 27
+                        },
+                        "value": "selfTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 28,
+                          "end": 32
+                        },
+                        "value": "main"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 33,
+                      "end": 34
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_binary",
+                    "range": {
+                      "start": 35,
+                      "end": 72
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 35,
+                          "end": 50
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 35,
+                              "end": 45
+                            },
+                            "value": "selfTarget"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 46,
+                              "end": 50
+                            },
+                            "value": "main"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 51,
+                          "end": 52
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_binary",
+                        "range": {
+                          "start": 53,
+                          "end": 72
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:eq_operand",
+                            "range": {
+                              "start": 53,
+                              "end": 68
+                            },
+                            "children": [
+                              {
+                                "type": "mcbuild:identifier",
+                                "range": {
+                                  "start": 53,
+                                  "end": 64
+                                },
+                                "value": "otherTarget"
+                              },
+                              {
+                                "type": "mcbuild:identifier",
+                                "range": {
+                                  "start": 65,
+                                  "end": 68
+                                },
+                                "value": "alt"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "mcbuild:eq_operator",
+                            "range": {
+                              "start": 69,
+                              "end": 70
+                            }
+                          },
+                          {
+                            "type": "mcbuild:eq_literal",
+                            "range": {
+                              "start": 71,
+                              "end": 72
+                            },
+                            "value": 2
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq sumTarget score += h i + 4 - 5' 1`] = `
+{
+  "errors": [],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 49
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 49
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 49
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 47
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 32
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 26
+                        },
+                        "value": "sumTarget"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 27,
+                          "end": 32
+                        },
+                        "value": "score"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 33,
+                      "end": 35
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_binary",
+                    "range": {
+                      "start": 36,
+                      "end": 47
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_binary",
+                        "range": {
+                          "start": 36,
+                          "end": 43
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:eq_operand",
+                            "range": {
+                              "start": 36,
+                              "end": 39
+                            },
+                            "children": [
+                              {
+                                "type": "mcbuild:identifier",
+                                "range": {
+                                  "start": 36,
+                                  "end": 37
+                                },
+                                "value": "h"
+                              },
+                              {
+                                "type": "mcbuild:identifier",
+                                "range": {
+                                  "start": 38,
+                                  "end": 39
+                                },
+                                "value": "i"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "mcbuild:eq_operator",
+                            "range": {
+                              "start": 40,
+                              "end": 41
+                            }
+                          },
+                          {
+                            "type": "mcbuild:eq_literal",
+                            "range": {
+                              "start": 42,
+                              "end": 43
+                            },
+                            "value": 4
+                          }
+                        ]
+                      },
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 44,
+                          "end": 45
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_literal",
+                        "range": {
+                          "start": 46,
+                          "end": 47
+                        },
+                        "value": 5
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq target obj = (1 + 2' 1`] = `
+{
+  "errors": [
+    {
+      "range": {
+        "start": 35,
+        "end": 36
+      },
+      "message": "Unmatched “(” in eq expression",
+      "severity": 3
+    }
+  ],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 38
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 38
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 38
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 36
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 27
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 23
+                        },
+                        "value": "target"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 24,
+                          "end": 27
+                        },
+                        "value": "obj"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 28,
+                      "end": 29
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_binary",
+                    "range": {
+                      "start": 31,
+                      "end": 36
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_literal",
+                        "range": {
+                          "start": 31,
+                          "end": 32
+                        },
+                        "value": 1
+                      },
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 33,
+                          "end": 34
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_literal",
+                        "range": {
+                          "start": 35,
+                          "end": 36
+                        },
+                        "value": 2
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq target obj = 1.5' 1`] = `
+{
+  "errors": [
+    {
+      "range": {
+        "start": 30,
+        "end": 32
+      },
+      "message": "Decimal literals are not supported in eq expressions",
+      "severity": 3
+    }
+  ],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 35
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 35
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 35
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 33
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 27
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 23
+                        },
+                        "value": "target"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 24,
+                          "end": 27
+                        },
+                        "value": "obj"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 28,
+                      "end": 29
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_literal",
+                    "range": {
+                      "start": 30,
+                      "end": 33
+                    },
+                    "value": 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;
+
+exports[`mcbuild parser (eq) > parse 'eq target obj = missingObjective' 1`] = `
+{
+  "errors": [
+    {
+      "range": {
+        "start": 30,
+        "end": 46
+      },
+      "message": "A score reference must be a holder and an objective separated by a space",
+      "severity": 3
+    }
+  ],
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 48
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 48
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 5
+            },
+            "value": "t"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 11,
+              "end": 48
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 17,
+                  "end": 46
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 17,
+                      "end": 27
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 17,
+                          "end": 23
+                        },
+                        "value": "target"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 24,
+                          "end": 27
+                        },
+                        "value": "obj"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 28,
+                      "end": 29
+                    }
+                  },
+                  {
+                    "type": "error",
+                    "range": {
+                      "start": 30,
+                      "end": 46
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+`;

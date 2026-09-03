@@ -1,0 +1,2899 @@
+exports[`mcbuild parser (.mcb) > parse block with data: 'function test {↓⮀block foo { {a:1}↓⮀⮀say hi↓⮀}↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 48
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 48
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 48
+            },
+            "children": [
+              {
+                "type": "mcbuild:block",
+                "range": {
+                  "start": 17,
+                  "end": 46
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:identifier",
+                    "range": {
+                      "start": 23,
+                      "end": 26
+                    },
+                    "value": "foo"
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 27,
+                      "end": 46
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:command",
+                        "range": {
+                          "start": 37,
+                          "end": 43
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command",
+                            "range": {
+                              "start": 37,
+                              "end": 43
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 37,
+                                  "end": 40
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/literal",
+                                    "range": {
+                                      "start": 37,
+                                      "end": 40
+                                    },
+                                    "value": "say"
+                                  }
+                                ],
+                                "path": [
+                                  "say"
+                                ]
+                              },
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 41,
+                                  "end": 43
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/unknown",
+                                    "range": {
+                                      "start": 41,
+                                      "end": 43
+                                    },
+                                    "value": "hi"
+                                  }
+                                ],
+                                "path": [
+                                  "say",
+                                  "message"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse clock: 'clock test 1s {↓⮀say hi↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 25
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:clock_definition",
+        "range": {
+          "start": 0,
+          "end": 25
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 6,
+              "end": 10
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:time",
+            "range": {
+              "start": 11,
+              "end": 13
+            }
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 25
+            },
+            "children": [
+              {
+                "type": "mcbuild:command",
+                "range": {
+                  "start": 17,
+                  "end": 23
+                },
+                "children": [
+                  {
+                    "type": "mcfunction:command",
+                    "range": {
+                      "start": 17,
+                      "end": 23
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:command_child",
+                        "range": {
+                          "start": 17,
+                          "end": 20
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child/literal",
+                            "range": {
+                              "start": 17,
+                              "end": 20
+                            },
+                            "value": "say"
+                          }
+                        ],
+                        "path": [
+                          "say"
+                        ]
+                      },
+                      {
+                        "type": "mcfunction:command_child",
+                        "range": {
+                          "start": 21,
+                          "end": 23
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child/unknown",
+                            "range": {
+                              "start": 21,
+                              "end": 23
+                            },
+                            "value": "hi"
+                          }
+                        ],
+                        "path": [
+                          "say",
+                          "message"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse comment: '# a top level comment↓' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 22
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "comment",
+        "range": {
+          "start": 0,
+          "end": 21
+        },
+        "comment": "a top level comment",
+        "prefix": "#"
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse compile-time if/else: 'function test {↓⮀IF (x === 0) {↓⮀⮀say zero↓⮀} ELSE IF (x === 1) {↓⮀⮀say one↓⮀} ELSE {↓⮀⮀say other↓⮀}↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 102
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 102
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 102
+            },
+            "children": [
+              {
+                "type": "mcbuild:compiletime_if",
+                "range": {
+                  "start": 17,
+                  "end": 100
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:js",
+                    "range": {
+                      "start": 20,
+                      "end": 29
+                    },
+                    "context": "expression",
+                    "source": "(x === 0)",
+                    "loose": false
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 30,
+                      "end": 45
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:command",
+                        "range": {
+                          "start": 34,
+                          "end": 42
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command",
+                            "range": {
+                              "start": 34,
+                              "end": 42
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 34,
+                                  "end": 37
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/literal",
+                                    "range": {
+                                      "start": 34,
+                                      "end": 37
+                                    },
+                                    "value": "say"
+                                  }
+                                ],
+                                "path": [
+                                  "say"
+                                ]
+                              },
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 38,
+                                  "end": 42
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/unknown",
+                                    "range": {
+                                      "start": 38,
+                                      "end": 42
+                                    },
+                                    "value": "zero"
+                                  }
+                                ],
+                                "path": [
+                                  "say",
+                                  "message"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:js",
+                    "range": {
+                      "start": 54,
+                      "end": 63
+                    },
+                    "context": "expression",
+                    "source": "(x === 1)",
+                    "loose": false
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 64,
+                      "end": 78
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:command",
+                        "range": {
+                          "start": 68,
+                          "end": 75
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command",
+                            "range": {
+                              "start": 68,
+                              "end": 75
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 68,
+                                  "end": 71
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/literal",
+                                    "range": {
+                                      "start": 68,
+                                      "end": 71
+                                    },
+                                    "value": "say"
+                                  }
+                                ],
+                                "path": [
+                                  "say"
+                                ]
+                              },
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 72,
+                                  "end": 75
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/unknown",
+                                    "range": {
+                                      "start": 72,
+                                      "end": 75
+                                    },
+                                    "value": "one"
+                                  }
+                                ],
+                                "path": [
+                                  "say",
+                                  "message"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 84,
+                      "end": 100
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:command",
+                        "range": {
+                          "start": 88,
+                          "end": 97
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command",
+                            "range": {
+                              "start": 88,
+                              "end": 97
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 88,
+                                  "end": 91
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/literal",
+                                    "range": {
+                                      "start": 88,
+                                      "end": 91
+                                    },
+                                    "value": "say"
+                                  }
+                                ],
+                                "path": [
+                                  "say"
+                                ]
+                              },
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 92,
+                                  "end": 97
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/unknown",
+                                    "range": {
+                                      "start": 92,
+                                      "end": 97
+                                    },
+                                    "value": "other"
+                                  }
+                                ],
+                                "path": [
+                                  "say",
+                                  "message"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse compile-time loop: 'dir gen {↓⮀function loop {↓⮀⮀REPEAT(1,3) as i {↓⮀⮀⮀say <%i%>↓⮀⮀}↓⮀}↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 69
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:directory_definition",
+        "range": {
+          "start": 0,
+          "end": 69
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 7
+            },
+            "value": "gen"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 8,
+              "end": 69
+            },
+            "children": [
+              {
+                "type": "mcbuild:function_definition",
+                "range": {
+                  "start": 11,
+                  "end": 67
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:identifier",
+                    "range": {
+                      "start": 20,
+                      "end": 24
+                    },
+                    "value": "loop"
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 25,
+                      "end": 67
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:compiletime_loop",
+                        "range": {
+                          "start": 29,
+                          "end": 64
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:js",
+                            "range": {
+                              "start": 29,
+                              "end": 40
+                            },
+                            "context": "expression",
+                            "source": "REPEAT(1,3)",
+                            "loose": false
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 44,
+                              "end": 45
+                            },
+                            "value": "i"
+                          },
+                          {
+                            "type": "mcbuild:body",
+                            "range": {
+                              "start": 46,
+                              "end": 64
+                            },
+                            "children": [
+                              {
+                                "type": "mcbuild:command",
+                                "range": {
+                                  "start": 51,
+                                  "end": 60
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcbuild:identifier",
+                                    "range": {
+                                      "start": 51,
+                                      "end": 55
+                                    },
+                                    "value": "say "
+                                  },
+                                  {
+                                    "type": "mcbuild:js",
+                                    "range": {
+                                      "start": 57,
+                                      "end": 58
+                                    },
+                                    "context": "inline",
+                                    "source": "i",
+                                    "loose": false
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse directory: 'dir test {↓⮀function inner {↓⮀⮀say hi↓⮀}↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 42
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:directory_definition",
+        "range": {
+          "start": 0,
+          "end": 42
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 8
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 9,
+              "end": 42
+            },
+            "children": [
+              {
+                "type": "mcbuild:function_definition",
+                "range": {
+                  "start": 12,
+                  "end": 40
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:identifier",
+                    "range": {
+                      "start": 21,
+                      "end": 26
+                    },
+                    "value": "inner"
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 27,
+                      "end": 40
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:command",
+                        "range": {
+                          "start": 31,
+                          "end": 37
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command",
+                            "range": {
+                              "start": 31,
+                              "end": 37
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 31,
+                                  "end": 34
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/literal",
+                                    "range": {
+                                      "start": 31,
+                                      "end": 34
+                                    },
+                                    "value": "say"
+                                  }
+                                ],
+                                "path": [
+                                  "say"
+                                ]
+                              },
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 35,
+                                  "end": 37
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/unknown",
+                                    "range": {
+                                      "start": 35,
+                                      "end": 37
+                                    },
+                                    "value": "hi"
+                                  }
+                                ],
+                                "path": [
+                                  "say",
+                                  "message"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse empty: '' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 0
+    },
+    "variant": "mcb",
+    "children": []
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse eq statement: 'function test {↓⮀eq a b = c d + 7 * (e f + 2)↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 47
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 47
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 47
+            },
+            "children": [
+              {
+                "type": "mcbuild:eq_statement",
+                "range": {
+                  "start": 20,
+                  "end": 44
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:eq_operand",
+                    "range": {
+                      "start": 20,
+                      "end": 23
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 20,
+                          "end": 21
+                        },
+                        "value": "a"
+                      },
+                      {
+                        "type": "mcbuild:identifier",
+                        "range": {
+                          "start": 22,
+                          "end": 23
+                        },
+                        "value": "b"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:eq_operator",
+                    "range": {
+                      "start": 24,
+                      "end": 25
+                    }
+                  },
+                  {
+                    "type": "mcbuild:eq_binary",
+                    "range": {
+                      "start": 26,
+                      "end": 44
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:eq_operand",
+                        "range": {
+                          "start": 26,
+                          "end": 29
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 26,
+                              "end": 27
+                            },
+                            "value": "c"
+                          },
+                          {
+                            "type": "mcbuild:identifier",
+                            "range": {
+                              "start": 28,
+                              "end": 29
+                            },
+                            "value": "d"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "mcbuild:eq_operator",
+                        "range": {
+                          "start": 30,
+                          "end": 31
+                        }
+                      },
+                      {
+                        "type": "mcbuild:eq_binary",
+                        "range": {
+                          "start": 32,
+                          "end": 44
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:eq_literal",
+                            "range": {
+                              "start": 32,
+                              "end": 33
+                            },
+                            "value": 7
+                          },
+                          {
+                            "type": "mcbuild:eq_operator",
+                            "range": {
+                              "start": 34,
+                              "end": 35
+                            }
+                          },
+                          {
+                            "type": "mcbuild:eq_binary",
+                            "range": {
+                              "start": 37,
+                              "end": 44
+                            },
+                            "children": [
+                              {
+                                "type": "mcbuild:eq_operand",
+                                "range": {
+                                  "start": 37,
+                                  "end": 40
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcbuild:identifier",
+                                    "range": {
+                                      "start": 37,
+                                      "end": 38
+                                    },
+                                    "value": "e"
+                                  },
+                                  {
+                                    "type": "mcbuild:identifier",
+                                    "range": {
+                                      "start": 39,
+                                      "end": 40
+                                    },
+                                    "value": "f"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "mcbuild:eq_operator",
+                                "range": {
+                                  "start": 41,
+                                  "end": 42
+                                }
+                              },
+                              {
+                                "type": "mcbuild:eq_literal",
+                                "range": {
+                                  "start": 43,
+                                  "end": 44
+                                },
+                                "value": 2
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse execute block with else: 'function test {↓⮀execute if score a b matches 1 run {↓⮀⮀say 1↓⮀} else run {↓⮀⮀say 2↓⮀}↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 88
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 88
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 88
+            },
+            "children": [
+              {
+                "type": "mcbuild:execute_block",
+                "range": {
+                  "start": 17,
+                  "end": 64
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:command",
+                    "range": {
+                      "start": 17,
+                      "end": 51
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:command",
+                        "range": {
+                          "start": 17,
+                          "end": 51
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 17,
+                              "end": 24
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/literal",
+                                "range": {
+                                  "start": 17,
+                                  "end": 24
+                                },
+                                "value": "execute"
+                              }
+                            ],
+                            "path": [
+                              "execute"
+                            ]
+                          },
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 25,
+                              "end": 27
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/literal",
+                                "range": {
+                                  "start": 25,
+                                  "end": 27
+                                },
+                                "value": "if"
+                              }
+                            ],
+                            "path": [
+                              "execute",
+                              "if"
+                            ]
+                          },
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 28,
+                              "end": 33
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/literal",
+                                "range": {
+                                  "start": 28,
+                                  "end": 33
+                                },
+                                "value": "score"
+                              }
+                            ],
+                            "path": [
+                              "execute",
+                              "if",
+                              "score"
+                            ]
+                          },
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 34,
+                              "end": 51
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/unknown",
+                                "range": {
+                                  "start": 34,
+                                  "end": 51
+                                },
+                                "value": "a b matches 1 run"
+                              }
+                            ],
+                            "path": [
+                              "execute",
+                              "if",
+                              "score",
+                              "target"
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 52,
+                      "end": 64
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:command",
+                        "range": {
+                          "start": 56,
+                          "end": 61
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command",
+                            "range": {
+                              "start": 56,
+                              "end": 61
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 56,
+                                  "end": 59
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/literal",
+                                    "range": {
+                                      "start": 56,
+                                      "end": 59
+                                    },
+                                    "value": "say"
+                                  }
+                                ],
+                                "path": [
+                                  "say"
+                                ]
+                              },
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 60,
+                                  "end": 61
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/unknown",
+                                    "range": {
+                                      "start": 60,
+                                      "end": 61
+                                    },
+                                    "value": "1"
+                                  }
+                                ],
+                                "path": [
+                                  "say",
+                                  "message"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:block",
+                    "range": {
+                      "start": 65,
+                      "end": 86
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:body",
+                        "range": {
+                          "start": 74,
+                          "end": 86
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:command",
+                            "range": {
+                              "start": 78,
+                              "end": 83
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command",
+                                "range": {
+                                  "start": 78,
+                                  "end": 83
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child",
+                                    "range": {
+                                      "start": 78,
+                                      "end": 81
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "mcfunction:command_child/literal",
+                                        "range": {
+                                          "start": 78,
+                                          "end": 81
+                                        },
+                                        "value": "say"
+                                      }
+                                    ],
+                                    "path": [
+                                      "say"
+                                    ]
+                                  },
+                                  {
+                                    "type": "mcfunction:command_child",
+                                    "range": {
+                                      "start": 82,
+                                      "end": 83
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "mcfunction:command_child/unknown",
+                                        "range": {
+                                          "start": 82,
+                                          "end": 83
+                                        },
+                                        "value": "2"
+                                      }
+                                    ],
+                                    "path": [
+                                      "say",
+                                      "message"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": [
+    {
+      "range": {
+        "start": 34,
+        "end": 51
+      },
+      "message": "Parser “minecraft:score_holder” hasn't been supported yet",
+      "severity": 0
+    }
+  ]
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse execute run inline: 'function test {↓⮀execute run say hi↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 37
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 37
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 37
+            },
+            "children": [
+              {
+                "type": "mcbuild:execute_run",
+                "range": {
+                  "start": 17,
+                  "end": 35
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:command",
+                    "range": {
+                      "start": 17,
+                      "end": 28
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:command",
+                        "range": {
+                          "start": 17,
+                          "end": 28
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 17,
+                              "end": 24
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/literal",
+                                "range": {
+                                  "start": 17,
+                                  "end": 24
+                                },
+                                "value": "execute"
+                              }
+                            ],
+                            "path": [
+                              "execute"
+                            ]
+                          },
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 25,
+                              "end": 28
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/literal",
+                                "range": {
+                                  "start": 25,
+                                  "end": 28
+                                },
+                                "value": "run"
+                              }
+                            ],
+                            "path": [
+                              "execute",
+                              "run"
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:command",
+                    "range": {
+                      "start": 29,
+                      "end": 35
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:command",
+                        "range": {
+                          "start": 29,
+                          "end": 35
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 29,
+                              "end": 32
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/literal",
+                                "range": {
+                                  "start": 29,
+                                  "end": 32
+                                },
+                                "value": "say"
+                              }
+                            ],
+                            "path": [
+                              "say"
+                            ]
+                          },
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 33,
+                              "end": 35
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/unknown",
+                                "range": {
+                                  "start": 33,
+                                  "end": 35
+                                },
+                                "value": "hi"
+                              }
+                            ],
+                            "path": [
+                              "say",
+                              "message"
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse function append to tag: 'function on_load minecraft:load {↓⮀say hi↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 43
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 43
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 16
+            },
+            "value": "on_load"
+          },
+          {
+            "type": "resource_location",
+            "range": {
+              "start": 17,
+              "end": 31
+            },
+            "namespace": "minecraft",
+            "path": [
+              "load"
+            ]
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 32,
+              "end": 43
+            },
+            "children": [
+              {
+                "type": "mcbuild:command",
+                "range": {
+                  "start": 35,
+                  "end": 41
+                },
+                "children": [
+                  {
+                    "type": "mcfunction:command",
+                    "range": {
+                      "start": 35,
+                      "end": 41
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:command_child",
+                        "range": {
+                          "start": 35,
+                          "end": 38
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child/literal",
+                            "range": {
+                              "start": 35,
+                              "end": 38
+                            },
+                            "value": "say"
+                          }
+                        ],
+                        "path": [
+                          "say"
+                        ]
+                      },
+                      {
+                        "type": "mcfunction:command_child",
+                        "range": {
+                          "start": 39,
+                          "end": 41
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child/unknown",
+                            "range": {
+                              "start": 39,
+                              "end": 41
+                            },
+                            "value": "hi"
+                          }
+                        ],
+                        "path": [
+                          "say",
+                          "message"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse function: 'function test {↓⮀say hi↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 25
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 25
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 25
+            },
+            "children": [
+              {
+                "type": "mcbuild:command",
+                "range": {
+                  "start": 17,
+                  "end": 23
+                },
+                "children": [
+                  {
+                    "type": "mcfunction:command",
+                    "range": {
+                      "start": 17,
+                      "end": 23
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:command_child",
+                        "range": {
+                          "start": 17,
+                          "end": 20
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child/literal",
+                            "range": {
+                              "start": 17,
+                              "end": 20
+                            },
+                            "value": "say"
+                          }
+                        ],
+                        "path": [
+                          "say"
+                        ]
+                      },
+                      {
+                        "type": "mcfunction:command_child",
+                        "range": {
+                          "start": 21,
+                          "end": 23
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child/unknown",
+                            "range": {
+                              "start": 21,
+                              "end": 23
+                            },
+                            "value": "hi"
+                          }
+                        ],
+                        "path": [
+                          "say",
+                          "message"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse import: 'import ./templates.mcbt↓' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 24
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:import",
+        "range": {
+          "start": 0,
+          "end": 23
+        },
+        "path": {
+          "type": "mcbuild:identifier",
+          "range": {
+            "start": 7,
+            "end": 23
+          },
+          "value": "./templates.mcbt"
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 7,
+              "end": 23
+            },
+            "value": "./templates.mcbt"
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse inline js in command: 'function test {↓⮀say value is <%1 + 2%>↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 41
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 41
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 41
+            },
+            "children": [
+              {
+                "type": "mcbuild:command",
+                "range": {
+                  "start": 17,
+                  "end": 39
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:identifier",
+                    "range": {
+                      "start": 17,
+                      "end": 30
+                    },
+                    "value": "say value is "
+                  },
+                  {
+                    "type": "mcbuild:js",
+                    "range": {
+                      "start": 32,
+                      "end": 37
+                    },
+                    "context": "inline",
+                    "source": "1 + 2",
+                    "loose": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse loot table file: 'loot_table my_loot {↓⮀\"type\": \"minecraft:block\"↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 49
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:json_file",
+        "range": {
+          "start": 0,
+          "end": 49
+        },
+        "kind": "loot_table",
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 11,
+              "end": 18
+            },
+            "value": "my_loot"
+          },
+          {
+            "type": "json:typed",
+            "range": {
+              "start": 19,
+              "end": 49
+            },
+            "children": [
+              {
+                "type": "json:object",
+                "range": {
+                  "start": 19,
+                  "end": 49
+                },
+                "children": [
+                  {
+                    "type": "pair",
+                    "range": {
+                      "start": 22,
+                      "end": 48
+                    },
+                    "children": [
+                      {
+                        "type": "json:string",
+                        "range": {
+                          "start": 22,
+                          "end": 28
+                        },
+                        "value": "type",
+                        "valueMap": [
+                          {
+                            "inner": {
+                              "start": 0,
+                              "end": 0
+                            },
+                            "outer": {
+                              "start": 23,
+                              "end": 23
+                            }
+                          }
+                        ],
+                        "quote": "\\""
+                      },
+                      {
+                        "type": "json:string",
+                        "range": {
+                          "start": 30,
+                          "end": 47
+                        },
+                        "value": "minecraft:block",
+                        "valueMap": [
+                          {
+                            "inner": {
+                              "start": 0,
+                              "end": 0
+                            },
+                            "outer": {
+                              "start": 31,
+                              "end": 31
+                            }
+                          }
+                        ],
+                        "quote": "\\""
+                      }
+                    ],
+                    "key": {
+                      "type": "json:string",
+                      "range": {
+                        "start": 22,
+                        "end": 28
+                      },
+                      "value": "type",
+                      "valueMap": [
+                        {
+                          "inner": {
+                            "start": 0,
+                            "end": 0
+                          },
+                          "outer": {
+                            "start": 23,
+                            "end": 23
+                          }
+                        }
+                      ],
+                      "quote": "\\""
+                    },
+                    "sep": {
+                      "start": 28,
+                      "end": 29
+                    }
+                  }
+                ],
+                "innerRange": {
+                  "start": 20,
+                  "end": 48
+                }
+              }
+            ],
+            "targetType": {
+              "kind": "dispatcher",
+              "registry": "minecraft:resource",
+              "parallelIndices": [
+                {
+                  "kind": "static",
+                  "value": "loot_table"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse macro line: 'function test {↓⮀$say hi $(name)↓⮀$function ./demo↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 52
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 52
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 52
+            },
+            "children": [
+              {
+                "type": "mcbuild:command",
+                "range": {
+                  "start": 17,
+                  "end": 32
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:macro_prefix",
+                    "range": {
+                      "start": 17,
+                      "end": 18
+                    }
+                  },
+                  {
+                    "type": "mcfunction:macro",
+                    "range": {
+                      "start": 18,
+                      "end": 32
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:macro/other",
+                        "range": {
+                          "start": 18,
+                          "end": 25
+                        },
+                        "value": "say hi "
+                      },
+                      {
+                        "type": "mcfunction:macro/argument",
+                        "range": {
+                          "start": 25,
+                          "end": 32
+                        },
+                        "value": "name"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "mcbuild:function_call",
+                "range": {
+                  "start": 34,
+                  "end": 50
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:macro_prefix",
+                    "range": {
+                      "start": 34,
+                      "end": 35
+                    }
+                  },
+                  {
+                    "type": "mcbuild:reference",
+                    "range": {
+                      "start": 44,
+                      "end": 50
+                    },
+                    "scheme": "relative",
+                    "isTag": false,
+                    "path": "./demo"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse multiline script: 'function test {↓⮀<%%↓⮀emit(\"say hi\");↓⮀%%>↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 44
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 44
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 44
+            },
+            "children": [
+              {
+                "type": "mcbuild:multiline_script",
+                "range": {
+                  "start": 17,
+                  "end": 42
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:js",
+                    "range": {
+                      "start": 20,
+                      "end": 39
+                    },
+                    "context": "multiline",
+                    "source": "\\n\\temit(\\"say hi\\");\\n\\t",
+                    "loose": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse nested blocks: 'function test {↓⮀block foo {↓⮀⮀say 1↓⮀⮀block {↓⮀⮀⮀say 2↓⮀⮀}↓⮀}↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 64
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 64
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 64
+            },
+            "children": [
+              {
+                "type": "mcbuild:block",
+                "range": {
+                  "start": 17,
+                  "end": 62
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:identifier",
+                    "range": {
+                      "start": 23,
+                      "end": 26
+                    },
+                    "value": "foo"
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 27,
+                      "end": 62
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:command",
+                        "range": {
+                          "start": 31,
+                          "end": 36
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command",
+                            "range": {
+                              "start": 31,
+                              "end": 36
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 31,
+                                  "end": 34
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/literal",
+                                    "range": {
+                                      "start": 31,
+                                      "end": 34
+                                    },
+                                    "value": "say"
+                                  }
+                                ],
+                                "path": [
+                                  "say"
+                                ]
+                              },
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 35,
+                                  "end": 36
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/unknown",
+                                    "range": {
+                                      "start": 35,
+                                      "end": 36
+                                    },
+                                    "value": "1"
+                                  }
+                                ],
+                                "path": [
+                                  "say",
+                                  "message"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "mcbuild:block",
+                        "range": {
+                          "start": 39,
+                          "end": 59
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:body",
+                            "range": {
+                              "start": 45,
+                              "end": 59
+                            },
+                            "children": [
+                              {
+                                "type": "mcbuild:command",
+                                "range": {
+                                  "start": 50,
+                                  "end": 55
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command",
+                                    "range": {
+                                      "start": 50,
+                                      "end": 55
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "mcfunction:command_child",
+                                        "range": {
+                                          "start": 50,
+                                          "end": 53
+                                        },
+                                        "children": [
+                                          {
+                                            "type": "mcfunction:command_child/literal",
+                                            "range": {
+                                              "start": 50,
+                                              "end": 53
+                                            },
+                                            "value": "say"
+                                          }
+                                        ],
+                                        "path": [
+                                          "say"
+                                        ]
+                                      },
+                                      {
+                                        "type": "mcfunction:command_child",
+                                        "range": {
+                                          "start": 54,
+                                          "end": 55
+                                        },
+                                        "children": [
+                                          {
+                                            "type": "mcfunction:command_child/unknown",
+                                            "range": {
+                                              "start": 54,
+                                              "end": 55
+                                            },
+                                            "value": "2"
+                                          }
+                                        ],
+                                        "path": [
+                                          "say",
+                                          "message"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse return run: 'function test {↓⮀return run say hi↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 36
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 36
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 36
+            },
+            "children": [
+              {
+                "type": "mcbuild:return_run",
+                "range": {
+                  "start": 17,
+                  "end": 34
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:command",
+                    "range": {
+                      "start": 28,
+                      "end": 34
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:command",
+                        "range": {
+                          "start": 28,
+                          "end": 34
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 28,
+                              "end": 31
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/literal",
+                                "range": {
+                                  "start": 28,
+                                  "end": 31
+                                },
+                                "value": "say"
+                              }
+                            ],
+                            "path": [
+                              "say"
+                            ]
+                          },
+                          {
+                            "type": "mcfunction:command_child",
+                            "range": {
+                              "start": 32,
+                              "end": 34
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child/unknown",
+                                "range": {
+                                  "start": 32,
+                                  "end": 34
+                                },
+                                "value": "hi"
+                              }
+                            ],
+                            "path": [
+                              "say",
+                              "message"
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse schedule forms: 'function test {↓⮀schedule 1t append {↓⮀⮀say hi↓⮀}↓⮀schedule function ./demo 1t replace↓⮀schedule clear *demo↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 110
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 110
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 110
+            },
+            "children": [
+              {
+                "type": "mcbuild:schedule_block",
+                "range": {
+                  "start": 17,
+                  "end": 49
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:time",
+                    "range": {
+                      "start": 26,
+                      "end": 28
+                    }
+                  },
+                  {
+                    "type": "mcbuild:identifier",
+                    "range": {
+                      "start": 29,
+                      "end": 35
+                    },
+                    "value": "append"
+                  },
+                  {
+                    "type": "mcbuild:body",
+                    "range": {
+                      "start": 36,
+                      "end": 49
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:command",
+                        "range": {
+                          "start": 40,
+                          "end": 46
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command",
+                            "range": {
+                              "start": 40,
+                              "end": 46
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 40,
+                                  "end": 43
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/literal",
+                                    "range": {
+                                      "start": 40,
+                                      "end": 43
+                                    },
+                                    "value": "say"
+                                  }
+                                ],
+                                "path": [
+                                  "say"
+                                ]
+                              },
+                              {
+                                "type": "mcfunction:command_child",
+                                "range": {
+                                  "start": 44,
+                                  "end": 46
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child/unknown",
+                                    "range": {
+                                      "start": 44,
+                                      "end": 46
+                                    },
+                                    "value": "hi"
+                                  }
+                                ],
+                                "path": [
+                                  "say",
+                                  "message"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "mcbuild:schedule_call",
+                "range": {
+                  "start": 51,
+                  "end": 86
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:reference",
+                    "range": {
+                      "start": 69,
+                      "end": 75
+                    },
+                    "scheme": "relative",
+                    "isTag": false,
+                    "path": "./demo"
+                  },
+                  {
+                    "type": "mcbuild:time",
+                    "range": {
+                      "start": 76,
+                      "end": 78
+                    }
+                  },
+                  {
+                    "type": "mcbuild:identifier",
+                    "range": {
+                      "start": 79,
+                      "end": 86
+                    },
+                    "value": "replace"
+                  }
+                ]
+              },
+              {
+                "type": "mcbuild:schedule_clear",
+                "range": {
+                  "start": 88,
+                  "end": 108
+                },
+                "children": [
+                  {
+                    "type": "mcbuild:reference",
+                    "range": {
+                      "start": 103,
+                      "end": 108
+                    },
+                    "scheme": "absolute",
+                    "isTag": false,
+                    "path": "demo"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse tag file: 'tag function test replace {↓⮀minecraft:load↓⮀#./other↓⮀*abs/fn↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 64
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:json_file",
+        "range": {
+          "start": 0,
+          "end": 64
+        },
+        "kind": "tag",
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 4,
+              "end": 12
+            },
+            "value": "function"
+          },
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 13,
+              "end": 17
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:keyword",
+            "range": {
+              "start": 18,
+              "end": 25
+            }
+          },
+          {
+            "type": "mcbuild:tag_entry",
+            "range": {
+              "start": 29,
+              "end": 43
+            },
+            "children": [
+              {
+                "type": "mcbuild:reference",
+                "range": {
+                  "start": 29,
+                  "end": 43
+                },
+                "scheme": "id",
+                "isTag": false,
+                "path": "minecraft:load"
+              }
+            ]
+          },
+          {
+            "type": "mcbuild:tag_entry",
+            "range": {
+              "start": 45,
+              "end": 53
+            },
+            "children": [
+              {
+                "type": "mcbuild:reference",
+                "range": {
+                  "start": 45,
+                  "end": 53
+                },
+                "scheme": "relative",
+                "isTag": true,
+                "path": "./other"
+              }
+            ]
+          },
+          {
+            "type": "mcbuild:tag_entry",
+            "range": {
+              "start": 55,
+              "end": 62
+            },
+            "children": [
+              {
+                "type": "mcbuild:reference",
+                "range": {
+                  "start": 55,
+                  "end": 62
+                },
+                "scheme": "absolute",
+                "isTag": false,
+                "path": "abs/fn"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;
+
+exports[`mcbuild parser (.mcb) > parse template block-argument call: 'function test {↓⮀my_template 3.4 {↓⮀⮀say body↓⮀}↓}' 1`] = `
+{
+  "node": {
+    "type": "mcbuild:entry",
+    "range": {
+      "start": 0,
+      "end": 50
+    },
+    "variant": "mcb",
+    "children": [
+      {
+        "type": "mcbuild:function_definition",
+        "range": {
+          "start": 0,
+          "end": 50
+        },
+        "children": [
+          {
+            "type": "mcbuild:identifier",
+            "range": {
+              "start": 9,
+              "end": 13
+            },
+            "value": "test"
+          },
+          {
+            "type": "mcbuild:body",
+            "range": {
+              "start": 14,
+              "end": 50
+            },
+            "children": [
+              {
+                "type": "mcbuild:command",
+                "range": {
+                  "start": 17,
+                  "end": 48
+                },
+                "children": [
+                  {
+                    "type": "mcfunction:command",
+                    "range": {
+                      "start": 17,
+                      "end": 32
+                    },
+                    "children": [
+                      {
+                        "type": "mcfunction:command_child",
+                        "range": {
+                          "start": 17,
+                          "end": 28
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child/literal",
+                            "range": {
+                              "start": 17,
+                              "end": 28
+                            },
+                            "value": "my_template"
+                          }
+                        ],
+                        "path": [
+                          "my_template"
+                        ]
+                      },
+                      {
+                        "type": "mcfunction:command_child",
+                        "range": {
+                          "start": 28,
+                          "end": 32
+                        },
+                        "children": [
+                          {
+                            "type": "mcfunction:command_child/trailing",
+                            "range": {
+                              "start": 28,
+                              "end": 32
+                            },
+                            "value": " 3.4"
+                          }
+                        ],
+                        "path": []
+                      }
+                    ]
+                  },
+                  {
+                    "type": "mcbuild:block",
+                    "range": {
+                      "start": 33,
+                      "end": 48
+                    },
+                    "children": [
+                      {
+                        "type": "mcbuild:body",
+                        "range": {
+                          "start": 33,
+                          "end": 48
+                        },
+                        "children": [
+                          {
+                            "type": "mcbuild:command",
+                            "range": {
+                              "start": 37,
+                              "end": 45
+                            },
+                            "children": [
+                              {
+                                "type": "mcfunction:command",
+                                "range": {
+                                  "start": 37,
+                                  "end": 45
+                                },
+                                "children": [
+                                  {
+                                    "type": "mcfunction:command_child",
+                                    "range": {
+                                      "start": 37,
+                                      "end": 40
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "mcfunction:command_child/literal",
+                                        "range": {
+                                          "start": 37,
+                                          "end": 40
+                                        },
+                                        "value": "say"
+                                      }
+                                    ],
+                                    "path": [
+                                      "say"
+                                    ]
+                                  },
+                                  {
+                                    "type": "mcfunction:command_child",
+                                    "range": {
+                                      "start": 41,
+                                      "end": 45
+                                    },
+                                    "children": [
+                                      {
+                                        "type": "mcfunction:command_child/unknown",
+                                        "range": {
+                                          "start": 41,
+                                          "end": 45
+                                        },
+                                        "value": "body"
+                                      }
+                                    ],
+                                    "path": [
+                                      "say",
+                                      "message"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "errors": []
+}
+`;

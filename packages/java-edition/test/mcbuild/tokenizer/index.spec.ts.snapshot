@@ -1,0 +1,464 @@
+exports[`mcbuild tokenize() > tokenize backslash continuation 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 13)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[14, 15)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[17, 32)",
+    "source": "say \\\\↓⮀hi there",
+    "value": "say hi there"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[33, 34)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize block comment toggle 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[4, 26)",
+    "source": "this is ignored syntax",
+    "value": "### this is ignored syntax"
+  },
+  {
+    "type": "literal",
+    "range": "[31, 44)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[45, 46)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[47, 48)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize block with data 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 13)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[14, 15)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[17, 26)",
+    "source": "block foo",
+    "value": "block foo"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[27, 34)",
+    "source": "{ {a:1}",
+    "data": "{a:1}"
+  },
+  {
+    "type": "literal",
+    "range": "[37, 43)",
+    "source": "say hi",
+    "value": "say hi"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[45, 46)",
+    "source": "}"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[47, 48)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize brace on same line as content 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 13)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[13, 14)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[16, 22)",
+    "source": "say hi",
+    "value": "say hi"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[23, 24)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize closing brace mid-line after command 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 13)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[14, 15)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[17, 51)",
+    "source": "execute if score a b matches 1 run",
+    "value": "execute if score a b matches 1 run"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[52, 53)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[56, 62)",
+    "source": "say hi",
+    "value": "say hi"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[64, 65)",
+    "source": "}"
+  },
+  {
+    "type": "literal",
+    "range": "[66, 74)",
+    "source": "else run",
+    "value": "else run"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[75, 76)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[79, 86)",
+    "source": "say bye",
+    "value": "say bye"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[88, 89)",
+    "source": "}"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[90, 91)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize directory 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 8)",
+    "source": "dir test",
+    "value": "dir test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[9, 10)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[12, 22)",
+    "source": "function a",
+    "value": "function a"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[23, 24)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[26, 27)",
+    "source": "}"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[28, 29)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize empty 1`] = `
+[]
+`;
+
+exports[`mcbuild tokenize() > tokenize function definition 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 13)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[14, 15)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[17, 23)",
+    "source": "say hi",
+    "value": "say hi"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[24, 25)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize inline js block in brace line 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 13)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[14, 15)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[17, 46)",
+    "source": "block named/<%\\"with\\"%>/script",
+    "value": "block named/<%\\"with\\"%>/script"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[47, 48)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[51, 57)",
+    "source": "say hi",
+    "value": "say hi"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[59, 60)",
+    "source": "}"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[61, 62)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize line comment 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 11)",
+    "source": "# a comment",
+    "value": "# a comment"
+  },
+  {
+    "type": "literal",
+    "range": "[12, 25)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[26, 27)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[28, 29)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize multiline script markers 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 13)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[14, 15)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[17, 20)",
+    "source": "<%%",
+    "value": "<%%"
+  },
+  {
+    "type": "literal",
+    "range": "[22, 37)",
+    "source": "emit(\\"say hi\\");",
+    "value": "emit(\\"say hi\\");"
+  },
+  {
+    "type": "literal",
+    "range": "[39, 42)",
+    "source": "%%>",
+    "value": "%%>"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[43, 44)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize nested braces in command (NBT) 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 13)",
+    "source": "function test",
+    "value": "function test"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[14, 15)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[17, 64)",
+    "source": "data modify storage a b set value {x:1,y:{z:2}}",
+    "value": "data modify storage a b set value {x:1,y:{z:2}}"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[65, 66)",
+    "source": "}"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize single command 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 6)",
+    "source": "say hi",
+    "value": "say hi"
+  }
+]
+`;
+
+exports[`mcbuild tokenize() > tokenize template with args 1`] = `
+[
+  {
+    "type": "literal",
+    "range": "[0, 12)",
+    "source": "template foo",
+    "value": "template foo"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[13, 14)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[16, 32)",
+    "source": "with a:int b:raw",
+    "value": "with a:int b:raw"
+  },
+  {
+    "type": "bracket_open",
+    "range": "[33, 34)",
+    "source": "{",
+    "data": "(none)"
+  },
+  {
+    "type": "literal",
+    "range": "[37, 43)",
+    "source": "say hi",
+    "value": "say hi"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[45, 46)",
+    "source": "}"
+  },
+  {
+    "type": "bracket_close",
+    "range": "[47, 48)",
+    "source": "}"
+  }
+]
+`;

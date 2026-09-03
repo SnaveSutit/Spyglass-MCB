@@ -1,5 +1,4 @@
 import * as core from '@spyglassmc/core'
-import EventEmitter from 'events'
 import * as ls from 'vscode-languageserver/node.js'
 
 type Predicate = (uri: string) => boolean
@@ -17,7 +16,9 @@ export interface LspFileWatcherOptions {
  * A file watcher based on Language Server Protocol's `workspace/didChangeWatchedFiles`
  * notification.
  */
-export class LspFileWatcher extends EventEmitter implements core.FileWatcher {
+export class LspFileWatcher extends core.EventDispatcher<core.FileWatcherEventMap>
+	implements core.FileWatcher
+{
 	#ready = false
 	readonly #connection: ls.Connection
 	readonly #externals: core.Externals
@@ -67,17 +68,27 @@ export class LspFileWatcher extends EventEmitter implements core.FileWatcher {
 			]
 
 			for (const location of this.#locations) {
-				for (const uri of await core.fileUtil.getAllFiles(this.#externals, location)) {
-					if (this.#predicate(uri)) {
-						this.#watchedFiles.add(uri)
+				try {
+					for (const uri of await core.fileUtil.getAllFiles(this.#externals, location)) {
+						if (this.#predicate(uri)) {
+							this.#watchedFiles.add(uri)
+						}
+					}
+				} catch (e) {
+					if (this.#externals.error.isKind(e, 'ENOENT')) {
+						// Missing files here should not cause file watcher initialization failure.
+						// https://github.com/SpyglassMC/Spyglass/issues/2034
+						this.#logger.warn('[LspFileWatcher#ready]', e)
+					} else {
+						throw e
 					}
 				}
 			}
 
 			this.#ready = true
-			this.emit('ready')
+			this.emit('ready', undefined)
 		} catch (e) {
-			this.emit('error', e)
+			this.emit('error', e as Error)
 		}
 	}
 
@@ -218,13 +229,16 @@ export class LspFileWatcher extends EventEmitter implements core.FileWatcher {
 				const diskEntryNames = new Set<string>()
 				for (const diskEntry of diskEntries) {
 					diskEntryNames.add(diskEntry.name)
-					await this.#reconcile(core.fileUtil.join(dirUri, diskEntry.name), diskEntry)
+					await this.#reconcile(
+						core.fileUtil.joinRawSegment(dirUri, diskEntry.name),
+						diskEntry,
+					)
 				}
 				// Remove extra entries of this directory, if any, from the internal URI store.
 				const storeEntryNames = this.#watchedFiles.getChildrenNames(dirUri)
 				for (const storeEntryName of storeEntryNames) {
 					if (!diskEntryNames.has(storeEntryName)) {
-						this.#handleDelete(core.fileUtil.join(dirUri, storeEntryName))
+						this.#handleDelete(core.fileUtil.joinRawSegment(dirUri, storeEntryName))
 					}
 				}
 			} else if (stat.isFile()) {

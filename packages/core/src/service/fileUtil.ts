@@ -1,5 +1,12 @@
 import type { Externals, FsLocation } from '../common/index.js'
-import { bufferToString, Uri } from '../common/index.js'
+import {
+	bigintJsonNumberReplacer,
+	bigintJsonNumberReviver,
+	bufferToString,
+	compressBytes,
+	decompressBytes,
+	Uri,
+} from '../common/index.js'
 
 export type RootUriString = `${string}/`
 
@@ -20,14 +27,14 @@ export namespace fileUtil {
 			return undefined
 		}
 
-		const baseComponents = baseUri.pathname.split('/').filter((v) => !!v)
-		const targetComponents = targetUri.pathname.split('/').filter((v) => !!v)
+		const baseComponents = baseUri.pathname.split('/').filter((v) => !!v).map(decodeURIComponent)
+		const targetComponents = targetUri.pathname.split('/').filter((v) => !!v).map(
+			decodeURIComponent,
+		)
 
 		if (
 			baseComponents.length > targetComponents.length
-			|| baseComponents.some((bc, i) =>
-				decodeURIComponent(bc) !== decodeURIComponent(targetComponents[i])
-			)
+			|| baseComponents.some((bc, i) => bc !== targetComponents[i])
 		) {
 			return undefined
 		}
@@ -105,8 +112,19 @@ export namespace fileUtil {
 		return isRootUri(uri) ? uri.slice(0, -1) : uri
 	}
 
-	export function join(fromUri: string, toUri: string): string {
-		return (ensureEndingSlash(fromUri) + (toUri.startsWith('/') ? toUri.slice(1) : toUri))
+	/**
+	 * @param encodedPath A properly encoded URI path with potentially many segments.
+	 */
+	export function joinEncodedPath(baseUri: string, encodedPath: string): string {
+		return (ensureEndingSlash(baseUri)
+			+ (encodedPath.startsWith('/') ? encodedPath.slice(1) : encodedPath))
+	}
+
+	/**
+	 * @param rawSegment A single unencoded URI path segment. Will be percent-encoded and appended to the base URI.
+	 */
+	export function joinRawSegment(baseUri: string, rawSegment: string): string {
+		return joinEncodedPath(baseUri, encodeURIComponent(rawSegment))
 	}
 
 	export function isFileUri(uri: string): boolean {
@@ -211,7 +229,7 @@ export namespace fileUtil {
 
 			const entries = await externals.fs.readdir(path)
 			return (await Promise.all(entries.map(async (e) => {
-				const entryPath = fileUtil.join(path.toString(), e.name)
+				const entryPath = fileUtil.joinRawSegment(path.toString(), e.name)
 				if (e.isDirectory()) {
 					return await walk(entryPath, level + 1)
 				} else if (e.isFile()) {
@@ -269,7 +287,7 @@ export namespace fileUtil {
 	 * @throws
 	 */
 	export async function readJson(externals: Externals, path: FsLocation): Promise<unknown> {
-		return JSON.parse(bufferToString(await readFile(externals, path)))
+		return JSON.parse(bufferToString(await readFile(externals, path)), bigintJsonNumberReviver)
 	}
 
 	/* istanbul ignore next */
@@ -283,7 +301,7 @@ export namespace fileUtil {
 		path: FsLocation,
 		data: any,
 	): Promise<void> {
-		return writeFile(externals, path, JSON.stringify(data))
+		return writeFile(externals, path, JSON.stringify(data, bigintJsonNumberReplacer))
 	}
 
 	/**
@@ -293,7 +311,7 @@ export namespace fileUtil {
 		externals: Externals,
 		path: FsLocation,
 	): Promise<Uint8Array<ArrayBuffer>> {
-		return externals.archive.gunzip(await readFile(externals, path))
+		return decompressBytes(await readFile(externals, path), 'gzip')
 	}
 
 	/**
@@ -307,14 +325,21 @@ export namespace fileUtil {
 		if (typeof buffer === 'string') {
 			buffer = new TextEncoder().encode(buffer)
 		}
-		return writeFile(externals, path, await externals.archive.gzip(buffer))
+		return writeFile(externals, path, await compressBytes(buffer, 'gzip'))
 	}
 
 	/**
 	 * @throws
 	 */
-	export async function readGzippedJson(externals: Externals, path: FsLocation): Promise<unknown> {
-		return JSON.parse(bufferToString(await readGzippedFile(externals, path)))
+	export async function readGzippedJson(
+		externals: Externals,
+		path: FsLocation,
+		reviver?: (this: any, key: string, value: any) => any,
+	): Promise<unknown> {
+		return JSON.parse(
+			bufferToString(await readGzippedFile(externals, path)),
+			reviver ?? bigintJsonNumberReviver,
+		)
 	}
 
 	/**
@@ -324,7 +349,12 @@ export namespace fileUtil {
 		externals: Externals,
 		path: FsLocation,
 		data: any,
+		replacer?: (this: any, key: string, value: any) => any,
 	): Promise<void> {
-		return writeGzippedFile(externals, path, JSON.stringify(data))
+		return writeGzippedFile(
+			externals,
+			path,
+			JSON.stringify(data, replacer ?? bigintJsonNumberReplacer),
+		)
 	}
 }

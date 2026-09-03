@@ -1,5 +1,7 @@
 export * from './Dev.js'
+export * from './EventDispatcher.js'
 export * from './externals/index.js'
+export * from './json.js'
 export * from './Logger.js'
 export * from './Operations.js'
 export * from './ReadonlyProxy.js'

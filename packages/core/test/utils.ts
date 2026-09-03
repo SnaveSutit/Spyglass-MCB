@@ -1,3 +1,4 @@
+import type { FsPromisesApi } from '@jsonjoy.com/fs-node-utils'
 import type {
 	ColorToken,
 	Externals,
@@ -28,7 +29,6 @@ import {
 	VanillaConfig,
 } from '@spyglassmc/core'
 import { getNodeJsExternals, NodeJsExternals } from '@spyglassmc/core/lib/nodejs.js'
-import type { FsPromisesApi } from 'memfs/lib/node/types/FsPromisesApi.js'
 import { fail } from 'node:assert/strict'
 import type fsp from 'node:fs/promises'
 import type { TestContext } from 'node:test'
@@ -54,7 +54,7 @@ export function mockProjectData(data: Partial<ProjectData> = {}): ProjectData {
 		profilers: data.profilers ?? ProfilerFactory.noop(),
 		projectRoots: data.projectRoots ?? ['file:///'],
 		roots: data.roots ?? [],
-		symbols: data.symbols ?? new SymbolUtil({}, externals.event.EventEmitter),
+		symbols: data.symbols ?? new SymbolUtil({}),
 	}
 }
 
@@ -197,7 +197,7 @@ export class SimpleProject {
 	readonly #global: SymbolTable = Object.create(null)
 	#nodes: Record<string, FileNode<AstNode>> = Object.create(null)
 
-	readonly #symbols = new SymbolUtil(this.#global, NodeJsExternals.event.EventEmitter)
+	readonly #symbols = new SymbolUtil(this.#global)
 
 	readonly #meta: MetaRegistry
 	readonly #files: readonly { uri: string; content: string }[]
@@ -330,4 +330,23 @@ export function mockExternals(
 	return getNodeJsExternals({
 		nodeFsp: nodeFsp as unknown as typeof fsp,
 	})
+}
+
+export async function assertUriExists(nodeFsp: typeof fsp, uri: string) {
+	try {
+		await nodeFsp.access(uri)
+	} catch (e) {
+		fail(e as Error)
+	}
+}
+
+export async function assertUriNotExists(nodeFsp: typeof fsp, uri: string) {
+	try {
+		await nodeFsp.access(uri)
+		fail(`Expected ${uri} to not exist`)
+	} catch (e) {
+		if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+			fail(e as Error)
+		}
+	}
 }

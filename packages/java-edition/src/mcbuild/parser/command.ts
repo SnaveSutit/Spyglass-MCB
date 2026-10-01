@@ -6,6 +6,7 @@ import type { McbToken } from '../tokenizer.js'
 import { parseJs } from './js.js'
 
 const INLINE_JS = /<%([^]*?)%>/
+const INLINE_JS_GLOBAL = /<%([^]*?)%>/g
 
 /** A `core.Source` over a token's text that reports document ranges. */
 export function tokenSource(token: McbToken): core.Source {
@@ -30,7 +31,6 @@ export interface CommandBridgeOptions {
  */
 export function parseCommandStatement(
 	token: McbToken,
-	isMacro: boolean,
 	options: CommandBridgeOptions,
 	ctx: core.ParserContext,
 	/** Store command errors in {@link CommandStatementNode.deferredErrors} instead of reporting. */
@@ -44,7 +44,7 @@ export function parseCommandStatement(
 	}
 
 	if (INLINE_JS.test(value)) {
-		node.interpolation = splitInterpolation(value, token, ctx)
+		node.interpolation = splitInterpolation(token, ctx)
 		node.children = node.interpolation
 		return node
 	}
@@ -68,33 +68,30 @@ export function parseCommandStatement(
 	return node
 }
 
-/** Splits `value` into literal / `<% %>` JS parts. */
+/** Splits `token.value` into literal / `<% %>` JS parts. */
 export function splitInterpolation(
-	value: string,
 	token: McbToken,
 	ctx: core.ParserContext,
 ): (IdentifierNode | JsNode)[] {
+	const value = token.value
+	const at = (offset: number) => core.IndexMap.toOuterOffset(token.indexMap, offset)
+	const literalPart = (from: number, to: number): IdentifierNode => ({
+		type: 'mcbuild:identifier',
+		range: core.Range.create(at(from), at(to)),
+		value: value.slice(from, to),
+	})
 	const parts: (IdentifierNode | JsNode)[] = []
-	const base = token.range.start
 	let last = 0
-	for (const match of value.matchAll(/<%([^]*?)%>/g)) {
+	for (const match of value.matchAll(INLINE_JS_GLOBAL)) {
 		const index = match.index
 		if (index > last) {
-			parts.push(literalPart(value.slice(last, index), base + last))
+			parts.push(literalPart(last, index))
 		}
-		parts.push(parseJs(match[1], base + index + 2, 'inline', ctx))
+		parts.push(parseJs(match[1], at(index + 2), 'inline', ctx))
 		last = index + match[0].length
 	}
 	if (last < value.length) {
-		parts.push(literalPart(value.slice(last), base + last))
+		parts.push(literalPart(last, value.length))
 	}
 	return parts
-}
-
-function literalPart(text: string, start: number): IdentifierNode {
-	return {
-		type: 'mcbuild:identifier',
-		range: core.Range.create(start, start + text.length),
-		value: text,
-	}
 }

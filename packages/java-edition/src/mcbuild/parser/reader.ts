@@ -49,16 +49,6 @@ export class TokenReader {
 	}
 }
 
-/** A literal token whose offsets map to source from `range.start`. */
-export function syntheticLiteral(value: string, range: core.Range): McbToken {
-	return {
-		type: 'literal',
-		value,
-		range,
-		indexMap: [{ inner: core.Range.create(0), outer: core.Range.create(range.start) }],
-	}
-}
-
 /** A literal token of `prefix + rest`, where only `rest` maps to source at `range.start`. */
 export function syntheticPrefixed(
 	prefix: string,

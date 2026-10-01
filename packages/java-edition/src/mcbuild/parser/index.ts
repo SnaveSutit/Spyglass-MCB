@@ -1,6 +1,5 @@
 import * as core from '@spyglassmc/core'
 import { localize } from '@spyglassmc/locales'
-import type * as mcf from '@spyglassmc/mcfunction'
 import type {
 	BlockNode,
 	BodyNode,
@@ -39,17 +38,13 @@ import type {
 import type { McbToken } from '../tokenizer.js'
 import { tokenize } from '../tokenizer.js'
 import type { CommandBridgeOptions } from './command.js'
-import { parseCommandStatement, splitInterpolation } from './command.js'
+import { parseCommandStatement, splitInterpolation, tokenSource } from './command.js'
 import { parseEq } from './eq.js'
 import { parseJs } from './js.js'
 import { jsonFileType, parseJsonBody } from './json.js'
-import { sliceToken, syntheticLiteral, syntheticPrefixed, TokenReader } from './reader.js'
+import { sliceToken, syntheticPrefixed, TokenReader } from './reader.js'
 
-export interface McbParserOptions {
-	tree: mcf.RootTreeNode
-	argument: mcf.ArgumentParserGetter
-	commandOptions: mcf.CommandOptions
-}
+export type McbParserOptions = CommandBridgeOptions
 
 const PLAIN_JSON_KINDS: Exclude<JsonFileKind, 'tag' | 'worldgen'>[] = [
 	'advancement',
@@ -164,14 +159,6 @@ function literalValue(token: McbToken | undefined): string | undefined {
 	return token?.type === 'literal' ? token.value : undefined
 }
 
-function ident(
-	token: McbToken,
-	value = literalValue(token) ?? '',
-	range = token.range,
-): IdentifierNode {
-	return { type: 'mcbuild:identifier', range, value }
-}
-
 /** Maps an offset in `token.value` to a document offset, across `\` continuations. */
 function at(token: McbToken, offset: number): number {
 	return core.IndexMap.toOuterOffset(token.indexMap, offset)
@@ -190,9 +177,38 @@ function identAt(token: McbToken, from: number, to: number): IdentifierNode {
 	}
 }
 
-const REPEAT_AS = /^REPEAT\s*\(([^]*)\)\s+as\s+([\w$,\s]+)$/
-const REPEAT_BARE = /^REPEAT\s*\(([^]*)\)\s*$/
-const EXECUTE_RUN = /\brun\b/
+/** The trimmed `token.value.slice(from)` and its start offset. */
+function restOf(token: McbToken, from: number): { text: string; start: number } {
+	const raw = token.value.slice(from)
+	return { text: raw.trim(), start: from + raw.length - raw.trimStart().length }
+}
+
+/** An identifier for the trimmed `token.value.slice(from)`. */
+function restIdent(token: McbToken, from: number): IdentifierNode {
+	const rest = restOf(token, from)
+	return identAt(token, rest.start, rest.start + rest.text.length)
+}
+
+interface Word {
+	text: string
+	/** Offsets into `token.value`. */
+	start: number
+	end: number
+}
+
+/** Words of `token.value.slice(from)`. */
+function wordsOf(token: McbToken, from = 0): Word[] {
+	return [...token.value.slice(from).matchAll(/\S+/g)].map((m) => ({
+		text: m[0],
+		start: from + m.index,
+		end: from + m.index + m[0].length,
+	}))
+}
+
+const REPEAT_AS = /^(REPEAT\s*\([^]*\))\s+as\s+([\w$,\s]+)$/
+/** mc-build's `executeRegExp`. */
+const EXECUTE_RUN = /\brun\s+?\b/
+const SCHEDULE_MODES = ['append', 'replace']
 
 const TEMPLATE_ARG_KINDS: readonly TemplateArgKind[] = [
 	'int',
@@ -213,14 +229,6 @@ class ParseState {
 		private readonly options: McbParserOptions,
 		private readonly fullText: string,
 	) {}
-
-	private get bridgeOptions(): CommandBridgeOptions {
-		return {
-			tree: this.options.tree,
-			argument: this.options.argument,
-			commandOptions: this.options.commandOptions,
-		}
-	}
 
 	private report(message: string, range: core.Range): void {
 		this.ctx.err.report(message, range)
@@ -335,28 +343,18 @@ class ParseState {
 	}
 
 	private readFunction(token: McbToken): FunctionDefinitionNode {
-		const rest = token.value.slice('function '.length).trim()
-		const parts = rest.split(/\s+/)
-		const nameStart = token.range.start + token.value.indexOf(rest)
-		const id: IdentifierNode = {
-			type: 'mcbuild:identifier',
-			range: core.Range.create(nameStart, nameStart + (parts[0]?.length ?? 0)),
-			value: parts[0] ?? '',
-		}
+		const [name, tag] = wordsOf(token, 'function '.length)
+		const id = name
+			? identAt(token, name.start, name.end)
+			: identAt(token, token.value.length, token.value.length)
 		const node: FunctionDefinitionNode = {
 			type: 'mcbuild:function_definition',
 			range: token.range,
 			id,
 			children: [id],
 		}
-		if (parts.length > 1) {
-			const tagStart = nameStart + rest.indexOf(parts[1], parts[0].length)
-			const tagSrc = new core.Source(parts[1], [
-				{
-					inner: core.Range.create(0),
-					outer: core.Range.create(tagStart),
-				},
-			])
+		if (tag) {
+			const tagSrc = tokenSource(sliceToken(token, tag.start, tag.end))
 			const appendTo = core.resourceLocation({
 				category: 'tag/function',
 				usageType: 'reference',
@@ -374,9 +372,8 @@ class ParseState {
 	}
 
 	private readClock(token: McbToken): ClockDefinitionNode {
-		const payload = token.value.slice('clock '.length).trim()
-		const spaceIdx = payload.indexOf(' ')
-		const base = token.range.start + token.value.indexOf(payload)
+		const payload = restOf(token, 'clock '.length)
+		const spaceIdx = payload.text.indexOf(' ')
 		let id: IdentifierNode
 		let time: core.AstNode
 		if (spaceIdx === -1) {
@@ -384,23 +381,14 @@ class ParseState {
 				localize('mcbuild.parser.clock.expected-name-time'),
 				token.range,
 			)
-			id = {
-				type: 'mcbuild:identifier',
-				range: core.Range.create(base, base + payload.length),
-				value: payload,
-			}
+			id = restIdent(token, payload.start)
 			time = { type: 'error', range: token.range }
 		} else {
-			id = {
-				type: 'mcbuild:identifier',
-				range: core.Range.create(base, base + spaceIdx),
-				value: payload.slice(0, spaceIdx),
-			}
-			const timeStr = payload.slice(spaceIdx + 1).trim()
-			const timeStart = base + payload.indexOf(timeStr, spaceIdx)
+			id = identAt(token, payload.start, payload.start + spaceIdx)
+			const timeStr = restOf(token, payload.start + spaceIdx)
 			time = {
 				type: 'mcbuild:time',
-				range: core.Range.create(timeStart, timeStart + timeStr.length),
+				range: subRange(token, timeStr.start, timeStr.start + timeStr.text.length),
 			}
 		}
 		const node: ClockDefinitionNode = {
@@ -419,13 +407,7 @@ class ParseState {
 	}
 
 	private readDir(token: McbToken): DirectoryDefinitionNode {
-		const name = token.value.slice('dir '.length).trim()
-		const base = token.range.start + token.value.indexOf(name)
-		const id: IdentifierNode = {
-			type: 'mcbuild:identifier',
-			range: core.Range.create(base, base + name.length),
-			value: name,
-		}
+		const id = restIdent(token, 'dir '.length)
 		const node: DirectoryDefinitionNode = {
 			type: 'mcbuild:directory_definition',
 			range: token.range,
@@ -446,15 +428,7 @@ class ParseState {
 	}
 
 	private importStatement(token: McbToken): ImportNode {
-		const raw = token.value.slice('import '.length)
-		const base = token.range.start + 'import '.length
-		const trimmed = raw.trim()
-		const lead = raw.length - raw.trimStart().length
-		const path: IdentifierNode = {
-			type: 'mcbuild:identifier',
-			range: core.Range.create(base + lead, base + lead + trimmed.length),
-			value: trimmed,
-		}
+		const path = restIdent(token, 'import '.length)
 		return {
 			type: 'mcbuild:import',
 			range: token.range,
@@ -478,13 +452,7 @@ class ParseState {
 	// #region templates
 
 	private readTemplate(token: McbToken): TemplateDefinitionNode {
-		const name = token.value.slice('template '.length).trim()
-		const base = token.range.start + token.value.indexOf(name)
-		const id: IdentifierNode = {
-			type: 'mcbuild:identifier',
-			range: core.Range.create(base, base + name.length),
-			value: name,
-		}
+		const id = restIdent(token, 'template '.length)
 		const node: TemplateDefinitionNode = {
 			type: 'mcbuild:template_definition',
 			range: token.range,
@@ -541,54 +509,38 @@ class ParseState {
 			params: [],
 			children: [],
 		}
-		const argsText = token.value.slice('with'.length).trim()
-		if (argsText.length > 0) {
-			const base = token.range.start + token.value.indexOf(argsText)
-			for (const m of argsText.matchAll(/(\S+)/g)) {
-				const word = m[1]
-				const wordStart = base + m.index!
-				const colon = word.indexOf(':')
-				let arg: TemplateArgNode
-				if (colon === -1) {
-					const nameNode: IdentifierNode = {
-						type: 'mcbuild:identifier',
-						range: core.Range.create(wordStart, wordStart + word.length),
-						value: word,
-					}
-					arg = {
-						type: 'mcbuild:template_arg',
-						range: nameNode.range,
-						name: nameNode,
-						kind: 'literal',
-						children: [nameNode],
-					}
-				} else {
-					const argName = word.slice(0, colon)
-					const kindStr = word.slice(colon + 1)
-					const nameNode: IdentifierNode = {
-						type: 'mcbuild:identifier',
-						range: core.Range.create(wordStart, wordStart + colon),
-						value: argName,
-					}
-					if (!TEMPLATE_ARG_KINDS.includes(kindStr as TemplateArgKind)) {
-						this.report(
-							localize('mcbuild.parser.template.unknown-arg-kind', kindStr),
-							core.Range.create(wordStart + colon + 1, wordStart + word.length),
-						)
-					}
-					arg = {
-						type: 'mcbuild:template_arg',
-						range: core.Range.create(wordStart, wordStart + word.length),
-						name: nameNode,
-						kind: TEMPLATE_ARG_KINDS.includes(kindStr as TemplateArgKind)
-							? (kindStr as TemplateArgKind)
-							: 'raw',
-						children: [nameNode],
-					}
+		for (const word of wordsOf(token, 'with'.length)) {
+			const colon = word.text.indexOf(':')
+			let arg: TemplateArgNode
+			if (colon === -1) {
+				const nameNode = identAt(token, word.start, word.end)
+				arg = {
+					type: 'mcbuild:template_arg',
+					range: nameNode.range,
+					name: nameNode,
+					kind: 'literal',
+					children: [nameNode],
 				}
-				node.params.push(arg)
-				node.children.push(arg)
+			} else {
+				const nameNode = identAt(token, word.start, word.start + colon)
+				const kindStr = word.text.slice(colon + 1)
+				const known = TEMPLATE_ARG_KINDS.includes(kindStr as TemplateArgKind)
+				if (!known) {
+					this.report(
+						localize('mcbuild.parser.template.unknown-arg-kind', kindStr),
+						subRange(token, word.start + colon + 1, word.end),
+					)
+				}
+				arg = {
+					type: 'mcbuild:template_arg',
+					range: subRange(token, word.start, word.end),
+					name: nameNode,
+					kind: known ? (kindStr as TemplateArgKind) : 'raw',
+					children: [nameNode],
+				}
 			}
+			node.params.push(arg)
+			node.children.push(arg)
 		}
 		node.body = this.block((body) => this.innerParse(body), false)
 		if (node.body) {
@@ -735,8 +687,7 @@ class ParseState {
 	private command(token: McbToken, macro?: MacroPrefixNode, deferCommandErrors = false) {
 		const node = parseCommandStatement(
 			token,
-			!!macro,
-			this.bridgeOptions,
+			this.options,
 			this.ctx,
 			deferCommandErrors,
 		)
@@ -782,31 +733,18 @@ class ParseState {
 	}
 
 	private blockStatement(token: McbToken, macro?: MacroPrefixNode): BlockNode {
-		const nameText = token.value.slice('block'.length).trim()
+		const name = restOf(token, 'block'.length)
 		const node: BlockNode = {
 			type: 'mcbuild:block',
 			range: token.range,
 			macro,
 			children: macro ? [macro] : [],
 		}
-		if (nameText.length > 0) {
-			const base = token.range.start + token.value.indexOf(nameText)
-			node.name = /<%([^]*?)%>/.test(nameText)
-				? splitInterpolation(
-					nameText,
-					syntheticLiteral(
-						nameText,
-						core.Range.create(base, base + nameText.length),
-					),
-					this.ctx,
-				)
-				: [
-					ident(
-						token,
-						nameText,
-						core.Range.create(base, base + nameText.length),
-					),
-				]
+		if (name.text.length > 0) {
+			node.name = splitInterpolation(
+				sliceToken(token, name.start, name.start + name.text.length),
+				this.ctx,
+			)
 			node.children.push(...node.name)
 		}
 		node.body = this.block((body) => this.innerParse(body))
@@ -850,96 +788,46 @@ class ParseState {
 	}
 
 	private schedule(token: McbToken, macro?: MacroPrefixNode): McbNode {
-		const payload = token.value.slice('schedule '.length).trim()
-		const base = token.range.start + token.value.indexOf(payload)
+		const words = wordsOf(token, 'schedule'.length)
+		const prefix = macro ? [macro] : []
 
-		if (payload.startsWith('function ')) {
-			const target = payload.slice('function '.length)
-			const targetBase = base + 'function '.length
-			const spaceIdx = target.search(/\s/)
-			const name = spaceIdx === -1 ? target : target.slice(0, spaceIdx)
-			const ref = this.reference(name, targetBase)
-			let rest = spaceIdx === -1 ? '' : target.slice(spaceIdx + 1).trim()
-			let mode: IdentifierNode | undefined
-			for (const kw of ['append', 'replace']) {
-				if (rest.endsWith(' ' + kw) || rest === kw) {
-					const idx = rest.lastIndexOf(kw)
-					mode = {
-						type: 'mcbuild:identifier',
-						range: core.Range.create(
-							targetBase + target.indexOf(rest, spaceIdx) + idx,
-							targetBase + target.indexOf(rest, spaceIdx) + idx + kw.length,
-						),
-						value: kw,
-					}
-					rest = rest.slice(0, idx).trim()
-				}
-			}
-			if (rest.length === 0) {
-				this.report(
-					localize('mcbuild.parser.schedule.expected-delay'),
-					token.range,
-				)
-			}
-			const timeStart = spaceIdx === -1
-				? targetBase
-				: targetBase + target.indexOf(rest, spaceIdx)
-			const node: ScheduleCallNode = {
-				type: 'mcbuild:schedule_call',
-				range: token.range,
-				macro,
-				target: ref,
-				time: {
-					type: 'mcbuild:time',
-					range: core.Range.create(timeStart, timeStart + rest.length),
-				},
-				mode,
-				children: [...(macro ? [macro] : []), ref],
-			}
-			node.children.push(node.time)
-			if (mode) {
-				node.children.push(mode)
-			}
-			return node
-		}
-
-		if (payload.startsWith('clear ')) {
-			const targetStr = payload.slice('clear '.length).trim()
-			const targetBase = base + payload.indexOf(targetStr, 'clear '.length)
-			const ref = this.reference(targetStr, targetBase)
+		if (words[0]?.text === 'clear' && words.length > 1) {
+			const target = restOf(token, words[0].end)
+			const ref = this.referenceAt(token, target.start, target.start + target.text.length)
 			return {
 				type: 'mcbuild:schedule_clear',
 				range: token.range,
 				macro,
 				target: ref,
-				children: [...(macro ? [macro] : []), ref],
+				children: [...prefix, ref],
 			} satisfies ScheduleClearNode
 		}
 
-		let rest = payload
-		let mode: IdentifierNode | undefined
-		for (const kw of ['append', 'replace']) {
-			if (rest.endsWith(' ' + kw)) {
-				const idx = rest.lastIndexOf(kw)
-				mode = {
-					type: 'mcbuild:identifier',
-					range: core.Range.create(base + idx, base + idx + kw.length),
-					value: kw,
-				}
-				rest = rest.slice(0, idx).trim()
+		if (words[0]?.text === 'function' && words.length > 1) {
+			const ref = this.referenceAt(token, words[1].start, words[1].end)
+			const { time, mode } = this.scheduleTiming(token, words.slice(2), words[1].end)
+			if (time.range.start === time.range.end) {
+				this.report(localize('mcbuild.parser.schedule.expected-delay'), token.range)
 			}
+			return {
+				type: 'mcbuild:schedule_call',
+				range: token.range,
+				macro,
+				target: ref,
+				time,
+				mode,
+				children: [...prefix, ref, time, ...(mode ? [mode] : [])],
+			} satisfies ScheduleCallNode
 		}
-		const time: core.AstNode = {
-			type: 'mcbuild:time',
-			range: core.Range.create(base, base + rest.length),
-		}
+
+		const { time, mode } = this.scheduleTiming(token, words, token.value.length)
 		const node: ScheduleBlockNode = {
 			type: 'mcbuild:schedule_block',
 			range: token.range,
 			macro,
 			time,
 			mode,
-			children: [...(macro ? [macro] : []), time, ...(mode ? [mode] : [])],
+			children: [...prefix, time, ...(mode ? [mode] : [])],
 		}
 		node.body = this.block((body) => this.innerParse(body))
 		if (node.body) {
@@ -949,13 +837,31 @@ class ParseState {
 		return node
 	}
 
-	private execute(
+	/** Splits words into a delay and a trailing `append` / `replace` (only after a delay). */
+	private scheduleTiming(
 		token: McbToken,
-		macro?: MacroPrefixNode,
-	): ExecuteBlockNode | ExecuteRunNode {
-		const next = this.reader.peek()
-		// `execute<%js%> run { }` and `execute ... run { }`
-		if (next?.type === 'bracket_open') {
+		words: Word[],
+		fallback: number,
+	): { time: core.AstNode; mode?: IdentifierNode } {
+		const last = words[words.length - 1]
+		const mode = words.length > 1 && SCHEDULE_MODES.includes(last.text)
+			? identAt(token, last.start, last.end)
+			: undefined
+		const delay = mode ? words.slice(0, -1) : words
+		const range = delay.length > 0
+			? subRange(token, delay[0].start, delay[delay.length - 1].end)
+			: core.Range.create(at(token, fallback))
+		return { time: { type: 'mcbuild:time', range }, mode }
+	}
+
+	private execute(token: McbToken, macro?: MacroPrefixNode): McbNode {
+		const match = EXECUTE_RUN.exec(token.value)
+		// Block form, unless the `{` belongs to an inline statement after `run`
+		// (`execute as @a run schedule 1t {`), like mc-build.
+		if (
+			this.reader.peek()?.type === 'bracket_open'
+			&& (token.value.endsWith('run') || !match)
+		) {
 			const executeCmd = this.command(token, undefined, true)
 			this.replayExecuteErrors(executeCmd, token)
 			const node: ExecuteBlockNode = {
@@ -975,15 +881,12 @@ class ParseState {
 			return node
 		}
 
-		const match = EXECUTE_RUN.exec(token.value)
 		if (match) {
-			const cut = match.index + match[0].length
-			const headEnd = token.value.slice(0, cut).replace(/\s+$/, '').length
-			const head = sliceToken(token, 0, headEnd)
+			const head = sliceToken(token, 0, match.index + 'run'.length)
 			const executeCmd = this.command(head, undefined, true)
 			this.replayExecuteErrors(executeCmd, head)
-			const tailStart = cut + (token.value.slice(cut).match(/^\s*/)?.[0].length ?? 0)
-			this.reader.insert(sliceToken(token, tailStart, token.value.length))
+			const tail = restOf(token, match.index + match[0].length)
+			this.reader.insert(sliceToken(token, tail.start, token.value.length))
 			const inner: McbNode[] = []
 			this.innerParse(inner)
 			const node: ExecuteRunNode = {
@@ -1004,7 +907,7 @@ class ParseState {
 			return node
 		}
 
-		return this.command(token, macro) as unknown as ExecuteRunNode
+		return this.command(token, macro)
 	}
 
 	private parseExecuteContinuations(node: ExecuteBlockNode): void {
@@ -1033,19 +936,11 @@ class ParseState {
 			if (text.startsWith('else ') && text.endsWith('run')) {
 				this.reader.skip()
 				const isMacro = text.startsWith('else $')
-				const execStr = text.slice(isMacro ? 'else $'.length : 'else '.length)
-				const execStart = peek!.range.start + (text.length - execStr.length)
+				const exec = restOf(peek!, isMacro ? 'else $'.length : 'else '.length)
 				// mc-build omits the leading `execute` here.
-				const execToken = execStr.startsWith('execute ')
-					? syntheticLiteral(
-						execStr,
-						core.Range.create(execStart, peek!.range.end),
-					)
-					: syntheticPrefixed(
-						'execute ',
-						execStr,
-						core.Range.create(execStart, peek!.range.end),
-					)
+				const execToken = exec.text.startsWith('execute ')
+					? sliceToken(peek!, exec.start, text.length)
+					: syntheticPrefixed('execute ', exec.text, subRange(peek!, exec.start, text.length))
 				const executeCmd = this.command(execToken, undefined, true)
 				this.replayExecuteErrors(executeCmd, execToken)
 				const cont: ExecuteBlockNode = {
@@ -1111,9 +1006,13 @@ class ParseState {
 	}
 
 	private eqStatement(token: McbToken, macro?: MacroPrefixNode): McbNode {
-		const text = token.value.slice('eq '.length)
-		const base = at(token, 'eq '.length)
-		const stmt = parseEq(text, base, token.range, this.ctx)
+		const from = 'eq '.length
+		const stmt = parseEq(
+			token.value.slice(from),
+			(offset) => at(token, from + offset),
+			token.range,
+			this.ctx,
+		)
 		if (!stmt) {
 			return { type: 'error', range: token.range }
 		}
@@ -1159,9 +1058,8 @@ class ParseState {
 		token: McbToken,
 		parseChild: () => McbNode | undefined,
 	): CompileTimeIfNode {
-		const exprText = token.value.slice('IF'.length).trim()
-		const exprBase = at(token, token.value.indexOf(exprText))
-		const condition = this.conditionJs(exprText, exprBase)
+		const expr = restOf(token, 'IF'.length)
+		const condition = this.js(expr.text, at(token, expr.start))
 		const node: CompileTimeIfNode = {
 			type: 'mcbuild:compiletime_if',
 			range: token.range,
@@ -1191,14 +1089,11 @@ class ParseState {
 			this.reader.skip()
 			let elifCond: JsNode | undefined
 			if (text.startsWith('ELSE ')) {
-				let cond = text.slice('ELSE '.length).trim()
-				let condBase = peek!.range.start + text.indexOf(cond)
-				if (cond.startsWith('IF')) {
-					const inner = cond.slice('IF'.length).trim()
-					condBase += cond.indexOf(inner)
-					cond = inner
+				let cond = restOf(peek!, 'ELSE '.length)
+				if (cond.text.startsWith('IF')) {
+					cond = restOf(peek!, cond.start + 'IF'.length)
 				}
-				elifCond = this.conditionJs(cond, condBase)
+				elifCond = this.js(cond.text, at(peek!, cond.start))
 			}
 			const elif: { condition?: JsNode; body?: BodyNode } = {
 				condition: elifCond,
@@ -1226,29 +1121,15 @@ class ParseState {
 		parseChild: () => McbNode | undefined,
 	): CompileTimeLoopNode {
 		const value = token.value
-		let exprText = value
-		const exprBase = token.range.start
-		const vars: IdentifierNode[] = []
 		const asMatch = REPEAT_AS.exec(value)
-		const bareMatch = REPEAT_BARE.exec(value)
+		const vars: IdentifierNode[] = []
 		if (asMatch) {
-			exprText = `REPEAT(${asMatch[1]})`
-			const varsStr = asMatch[2]
-			const varsStart = at(token, value.lastIndexOf(varsStr))
-			for (const m of varsStr.matchAll(/[\w$]+/g)) {
-				vars.push({
-					type: 'mcbuild:identifier',
-					range: core.Range.create(
-						varsStart + m.index!,
-						varsStart + m.index! + m[0].length,
-					),
-					value: m[0],
-				})
+			const varsFrom = value.length - asMatch[2].length
+			for (const m of asMatch[2].matchAll(/[\w$]+/g)) {
+				vars.push(identAt(token, varsFrom + m.index, varsFrom + m.index + m[0].length))
 			}
-		} else if (bareMatch) {
-			exprText = `REPEAT(${bareMatch[1]})`
 		}
-		const expression = this.conditionJs(exprText, exprBase, 'expression')
+		const expression = this.js(asMatch?.[1] ?? value, at(token, 0))
 		const node: CompileTimeLoopNode = {
 			type: 'mcbuild:compiletime_loop',
 			range: token.range,
@@ -1269,23 +1150,15 @@ class ParseState {
 		return node
 	}
 
-	private conditionJs(
-		text: string,
-		base: number,
-		context: JsNode['context'] = 'expression',
-	): JsNode {
-		return parseJs(text, base, context, this.ctx)
+	private js(text: string, base: number): JsNode {
+		return parseJs(text, base, 'expression', this.ctx)
 	}
 
 	// #endregion
 	// #region data files
 
 	private readTagFile(token: McbToken): JsonFileNode {
-		const rest = token.value.slice('tag '.length)
-		const base = token.range.start + 'tag '.length
-		const words = this.words(rest, base)
-		const registry = words[0] ?? this.emptyIdent(base)
-		const id = words[1] ?? this.emptyIdent(base)
+		const [registry, id, replace] = this.headerWords(token, 'tag '.length, 3)
 		const node: JsonFileNode = {
 			type: 'mcbuild:json_file',
 			range: token.range,
@@ -1295,8 +1168,8 @@ class ParseState {
 			entries: [],
 			children: [registry, id],
 		}
-		if (words[2]?.value === 'replace') {
-			node.replace = { type: 'mcbuild:keyword', range: words[2].range }
+		if (replace.value === 'replace') {
+			node.replace = { type: 'mcbuild:keyword', range: replace.range }
 			node.children.push(node.replace)
 		}
 		const body = this.block((entries) => {
@@ -1325,27 +1198,16 @@ class ParseState {
 		let text = token.value
 		let replace: core.AstNode | undefined
 		if (text.endsWith(' replace')) {
-			const idx = token.value.lastIndexOf('replace')
+			const idx = text.length - 'replace'.length
 			replace = {
 				type: 'mcbuild:keyword',
-				range: subRange(token, idx, idx + 7),
+				range: subRange(token, idx, text.length),
 			}
-			text = text.slice(0, idx).trim()
+			text = text.slice(0, idx).trimEnd()
 		}
-		let value: TagEntryNode['value']
-		if (/^<%([^]*?)%>$/.test(text)) {
-			value = parseJs(
-				text.slice(2, -2),
-				token.range.start + 2,
-				'inline',
-				this.ctx,
-			)
-		} else if (/^[*.^#]|:/.test(text)) {
-			value = this.reference(text, token.range.start)
-		} else {
-			// bare `name` - treat as an id reference.
-			value = this.reference(text, token.range.start)
-		}
+		const value: TagEntryNode['value'] = /^<%([^]*?)%>$/.test(text)
+			? parseJs(text.slice(2, -2), at(token, 2), 'inline', this.ctx)
+			: this.referenceAt(token, 0, text.length)
 		const node: TagEntryNode = {
 			type: 'mcbuild:tag_entry',
 			range: token.range,
@@ -1360,19 +1222,12 @@ class ParseState {
 	}
 
 	private readWorldgenFile(token: McbToken): JsonFileNode {
-		const rest = token.value.slice('worldgen '.length)
-		const base = token.range.start + 'worldgen '.length
-		const words = this.words(rest, base)
-		const registry = words[0] ?? this.emptyIdent(base)
-		const id = words[1] ?? this.emptyIdent(base)
+		const [registry, id] = this.headerWords(token, 'worldgen '.length, 2)
 		return this.finishJsonFile(token, 'worldgen', registry, id, registry.value)
 	}
 
 	private readPlainJsonFile(token: McbToken, kind: JsonFileKind): JsonFileNode {
-		const rest = token.value.slice(kind.length + 1)
-		const base = token.range.start + kind.length + 1
-		const words = this.words(rest, base)
-		const id = words[0] ?? this.emptyIdent(base)
+		const [id] = this.headerWords(token, kind.length + 1, 1)
 		return this.finishJsonFile(token, kind, undefined, id, undefined)
 	}
 
@@ -1439,41 +1294,22 @@ class ParseState {
 		return undefined
 	}
 
-	/** Words of `text` as identifiers starting at `base`. */
-	private words(text: string, base: number): IdentifierNode[] {
-		const out: IdentifierNode[] = []
-		for (const m of text.matchAll(/\S+/g)) {
-			out.push({
-				type: 'mcbuild:identifier',
-				range: core.Range.create(
-					base + m.index!,
-					base + m.index! + m[0].length,
-				),
-				value: m[0],
-			})
-		}
-		return out
-	}
-
-	private emptyIdent(base: number): IdentifierNode {
-		return {
-			type: 'mcbuild:identifier',
-			range: core.Range.create(base),
-			value: '',
-		}
+	/** The first `count` words after `from`; missing ones are empty at end of line. */
+	private headerWords(token: McbToken, from: number, count: number): IdentifierNode[] {
+		const words = wordsOf(token, from)
+		const end = token.value.length
+		return Array.from(
+			{ length: count },
+			(_, i) =>
+				words[i] ? identAt(token, words[i].start, words[i].end) : identAt(token, end, end),
+		)
 	}
 
 	// #endregion
 	// #region references
 
-	/** {@link ParseState.reference} for a `token.value` slice. */
 	private referenceAt(token: McbToken, from: number, to: number): ReferenceNode {
-		const node = this.reference(token.value.slice(from, to), 0)
-		node.range = subRange(token, from, to)
-		return node
-	}
-
-	private reference(text: string, base: number): ReferenceNode {
+		const text = token.value.slice(from, to)
 		let isTag = false
 		let body = text
 		if (body.startsWith('#')) {
@@ -1500,7 +1336,7 @@ class ParseState {
 		}
 		return {
 			type: 'mcbuild:reference',
-			range: core.Range.create(base, base + text.length),
+			range: subRange(token, from, to),
 			scheme,
 			isTag,
 			depth,
@@ -1537,18 +1373,13 @@ class ParseState {
 					open.range,
 				)
 			}
-			const dataRange = core.Range.create(
-				open.range.end - open.data.length,
-				open.range.end,
-			)
 			body.data = /^<%([^]*?)%>$/.test(open.data)
-				? parseJs(
-					open.data.slice(2, -2),
-					dataRange.start + 2,
-					'inline',
-					this.ctx,
-				)
-				: { type: 'mcbuild:identifier', range: dataRange, value: open.data }
+				? parseJs(open.data.slice(2, -2), at(open, 2), 'inline', this.ctx)
+				: {
+					type: 'mcbuild:identifier',
+					range: subRange(open, 0, open.data.length),
+					value: open.data,
+				}
 		}
 		while (this.reader.hasNext()) {
 			const peek = this.reader.peek()!

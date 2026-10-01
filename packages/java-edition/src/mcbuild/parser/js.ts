@@ -1,7 +1,6 @@
 import * as core from '@spyglassmc/core'
 import { localize } from '@spyglassmc/locales'
 import * as acorn from 'acorn'
-import * as acornLoose from 'acorn-loose'
 import type { JsNode } from '../node/index.js'
 
 const ACORN_OPTIONS: acorn.Options = {
@@ -52,22 +51,17 @@ export function parseJs(
 		node.loose = true
 		const acornErr = e as unknown as { pos?: number }
 		if (e instanceof SyntaxError && typeof acornErr.pos === 'number') {
-			const pos = acornErr.pos + wrapOffset + baseOffset
+			// The parens can put `pos` outside the span.
+			const pos = Math.min(
+				Math.max(acornErr.pos + wrapOffset + baseOffset, node.range.start),
+				node.range.end,
+			)
 			ctx.err.report(
 				cleanAcornMessage((e as Error).message),
-				core.Range.create(
-					Math.max(baseOffset, pos),
-					Math.min(node.range.end, pos + 1),
-				),
+				core.Range.create(pos, Math.min(pos + 1, node.range.end)),
 			)
 		} else {
 			ctx.err.report(localize('mcbuild.parser.js.parse-failed'), node.range)
-		}
-		// Confirm acorn-loose can at least tolerate it; nothing else uses the tree.
-		try {
-			acornLoose.parse(wrapped, ACORN_OPTIONS)
-		} catch {
-			// ignore
 		}
 	}
 

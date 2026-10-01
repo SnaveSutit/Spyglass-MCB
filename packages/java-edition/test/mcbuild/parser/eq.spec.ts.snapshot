@@ -19,8 +19,8 @@ exports[`mcbuild parser (eq) > parse 'eq #a.b c = #d.e f + 2' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -151,8 +151,8 @@ exports[`mcbuild parser (eq) > parse 'eq a b = 1' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -242,8 +242,8 @@ exports[`mcbuild parser (eq) > parse 'eq a b = a d + 7 * (2 * c e + 3 * f g)' 1`
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -504,8 +504,8 @@ exports[`mcbuild parser (eq) > parse 'eq constTarget points = 42' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -595,8 +595,8 @@ exports[`mcbuild parser (eq) > parse 'eq copyTarget data = copySource data' 1`] 
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -703,8 +703,8 @@ exports[`mcbuild parser (eq) > parse 'eq decrementTarget counter -= 3' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -794,8 +794,8 @@ exports[`mcbuild parser (eq) > parse 'eq divideTarget stat /= divisor stat' 1`] 
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -902,8 +902,8 @@ exports[`mcbuild parser (eq) > parse 'eq divisionExprTarget stat = h i / divisor
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -1051,8 +1051,8 @@ exports[`mcbuild parser (eq) > parse 'eq moduloBinaryTarget stat = h i % divisor
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -1200,8 +1200,8 @@ exports[`mcbuild parser (eq) > parse 'eq moduloTarget stat %= 5' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -1291,8 +1291,8 @@ exports[`mcbuild parser (eq) > parse 'eq negateTarget main = -(negSource value)'
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -1415,8 +1415,8 @@ exports[`mcbuild parser (eq) > parse 'eq selectorTarget stat += @s ticker' 1`] =
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -1522,8 +1522,8 @@ exports[`mcbuild parser (eq) > parse 'eq selfTarget main = selfTarget main + oth
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -1695,8 +1695,8 @@ exports[`mcbuild parser (eq) > parse 'eq sumTarget score += h i + 4 - 5' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -1860,8 +1860,8 @@ exports[`mcbuild parser (eq) > parse 'eq target obj = (1 + 2' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -1984,8 +1984,8 @@ exports[`mcbuild parser (eq) > parse 'eq target obj = 1.5' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },
@@ -2084,8 +2084,8 @@ exports[`mcbuild parser (eq) > parse 'eq target obj = missingObjective' 1`] = `
           {
             "type": "mcbuild:identifier",
             "range": {
-              "start": 4,
-              "end": 5
+              "start": 9,
+              "end": 10
             },
             "value": "t"
           },

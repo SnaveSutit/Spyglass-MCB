@@ -26,7 +26,11 @@ function isIdentPart(ch: string): boolean {
 	return /[A-Za-z0-9_$@#.]/.test(ch)
 }
 
-function lex(text: string, base: number, ctx: core.ParserContext): EqToken[] {
+function lex(
+	text: string,
+	toOuter: (offset: number) => number,
+	ctx: core.ParserContext,
+): EqToken[] {
 	const tokens: EqToken[] = []
 	let i = 0
 	while (i < text.length) {
@@ -35,12 +39,12 @@ function lex(text: string, base: number, ctx: core.ParserContext): EqToken[] {
 			i++
 			continue
 		}
-		const start = base + i
+		const start = toOuter(i)
 		if (ch === '(' || ch === ')') {
 			tokens.push({
 				kind: ch === '(' ? 'lparen' : 'rparen',
 				value: ch,
-				range: core.Range.create(start, start + 1),
+				range: core.Range.create(start, toOuter(i + 1)),
 			})
 			i++
 			continue
@@ -50,18 +54,26 @@ function lex(text: string, base: number, ctx: core.ParserContext): EqToken[] {
 			tokens.push({
 				kind: 'separator',
 				value: ch + '=',
-				range: core.Range.create(start, start + 2),
+				range: core.Range.create(start, toOuter(i + 2)),
 			})
 			i += 2
 			continue
 		}
 		if (ch === '=') {
-			tokens.push({ kind: 'separator', value: '=', range: core.Range.create(start, start + 1) })
+			tokens.push({
+				kind: 'separator',
+				value: '=',
+				range: core.Range.create(start, toOuter(i + 1)),
+			})
 			i++
 			continue
 		}
 		if (BIN_OPS.has(ch)) {
-			tokens.push({ kind: 'operator', value: ch, range: core.Range.create(start, start + 1) })
+			tokens.push({
+				kind: 'operator',
+				value: ch,
+				range: core.Range.create(start, toOuter(i + 1)),
+			})
 			i++
 			continue
 		}
@@ -73,7 +85,7 @@ function lex(text: string, base: number, ctx: core.ParserContext): EqToken[] {
 			if (text[j] === '.') {
 				ctx.err.report(
 					localize('mcbuild.parser.eq.no-decimals'),
-					core.Range.create(start, base + j + 1),
+					core.Range.create(start, toOuter(j + 1)),
 				)
 				j++
 				while (j < text.length && text[j] >= '0' && text[j] <= '9') {
@@ -83,7 +95,7 @@ function lex(text: string, base: number, ctx: core.ParserContext): EqToken[] {
 			tokens.push({
 				kind: 'number',
 				value: text.slice(i, j),
-				range: core.Range.create(start, base + j),
+				range: core.Range.create(start, toOuter(j)),
 			})
 			i = j
 			continue
@@ -96,14 +108,14 @@ function lex(text: string, base: number, ctx: core.ParserContext): EqToken[] {
 			tokens.push({
 				kind: 'identifier',
 				value: text.slice(i, j),
-				range: core.Range.create(start, base + j),
+				range: core.Range.create(start, toOuter(j)),
 			})
 			i = j
 			continue
 		}
 		ctx.err.report(
 			localize('mcbuild.parser.eq.unexpected-char', ch),
-			core.Range.create(start, start + 1),
+			core.Range.create(start, toOuter(i + 1)),
 		)
 		i++
 	}
@@ -112,6 +124,18 @@ function lex(text: string, base: number, ctx: core.ParserContext): EqToken[] {
 
 function ident(token: EqToken): IdentifierNode {
 	return { type: 'mcbuild:identifier', range: token.range, value: token.value }
+}
+
+function operandNode(holder: EqToken, objective: EqToken): EqOperandNode {
+	const holderNode = ident(holder)
+	const objectiveNode = ident(objective)
+	return {
+		type: 'mcbuild:eq_operand',
+		range: core.Range.span(holder.range, objective.range),
+		holder: holderNode,
+		objective: objectiveNode,
+		children: [holderNode, objectiveNode],
+	}
 }
 
 function operator(token: EqToken): core.AstNode {
@@ -159,13 +183,7 @@ class EqParser {
 				separator.range,
 			)
 		}
-		const target: EqOperandNode = {
-			type: 'mcbuild:eq_operand',
-			range: core.Range.span(holder.range, objective.range),
-			holder: ident(holder),
-			objective: ident(objective),
-			children: [ident(holder), ident(objective)],
-		}
+		const target = operandNode(holder, objective)
 		const expression = this.parseAddSub()
 		if (this.peek()) {
 			this.report(localize('mcbuild.parser.eq.trailing', this.peek()!.value))
@@ -271,14 +289,7 @@ class EqParser {
 					}
 					return sel
 				}
-				const operand: EqOperandNode = {
-					type: 'mcbuild:eq_operand',
-					range: core.Range.span(holder.range, objective.range),
-					holder: ident(holder),
-					objective: ident(objective),
-					children: [ident(holder), ident(objective)],
-				}
-				return operand
+				return operandNode(holder, objective)
 			}
 			this.ctx.err.report(
 				localize('mcbuild.parser.eq.missing-objective'),
@@ -292,13 +303,14 @@ class EqParser {
 	}
 }
 
+/** @param toOuter Maps an offset in `text` to a document offset. */
 export function parseEq(
 	text: string,
-	baseOffset: number,
+	toOuter: (offset: number) => number,
 	fallbackRange: core.Range,
 	ctx: core.ParserContext,
 ): EqStatementNode | undefined {
-	const tokens = lex(text, baseOffset, ctx)
+	const tokens = lex(text, toOuter, ctx)
 	if (tokens.length === 0) {
 		ctx.err.report(localize('mcbuild.parser.eq.incomplete'), fallbackRange)
 		return undefined

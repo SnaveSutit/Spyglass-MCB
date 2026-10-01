@@ -20,12 +20,11 @@ import {
 import { getNodeJsExternals } from '@spyglassmc/core/lib/nodejs.js'
 import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
 import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
-import {
-	entry as mcbCompleter,
-	register as registerCompleter,
-} from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
+import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
+import { getMockNodes } from '@spyglassmc/java-edition/lib/mcfunction/completer/index.js'
 import { argument } from '@spyglassmc/java-edition/lib/mcfunction/parser/index.js'
+import * as mcf from '@spyglassmc/mcfunction'
 import { memfs } from 'memfs'
 import assert from 'node:assert/strict'
 import type fsp from 'node:fs/promises'
@@ -62,16 +61,18 @@ class TestFileWatcher extends EventDispatcher<FileWatcherEventMap> implements Fi
 /** Just the mc-build pieces, skipping the network-bound java-edition initializer. */
 const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	const parser = entry({ tree, argument, commandOptions: {} })
-	meta.registerLanguage('mc-build', { extensions: ['.mcb'], parser, completer: mcbCompleter })
+	const completer = mcbCompleterEntry({
+		command: mcf.completer.command(tree, getMockNodes),
+	})
+	meta.registerLanguage('mc-build', { extensions: ['.mcb'], parser, completer })
 	meta.registerLanguage('mc-build-template', {
 		extensions: ['.mcbt'],
 		parser,
-		completer: mcbCompleter,
+		completer,
 	})
-	meta.registerCompleter('mcfunction:command', () => [])
+	meta.registerCompleter('mcfunction:command_child/literal', coreCompleter.literal)
 	registerBinder(meta)
 	registerChecker(meta)
-	registerCompleter(meta)
 	return { loadedVersion: '1.21' }
 }
 
@@ -342,5 +343,23 @@ describe('mcbuild integration (real Project pipeline)', () => {
 				'function alpha {\n\tsay a\n}\ndir d {\n\tfunction caller {\n\t\tfunction *|\n\t}\n}\n',
 		}, 'src/main.mcb')
 		assert.deepEqual(abs.sort(), ['*alpha', '*d/caller'])
+	})
+
+	it('completes vanilla commands inside a function body via the real pipeline', async () => {
+		const fresh = await completeInProject({
+			'src/main.mcb': 'function t {\n\t|\n}\n',
+		}, 'src/main.mcb')
+		assert.ok(fresh.includes('say'), JSON.stringify(fresh))
+		assert.ok(fresh.includes('execute'), 'mc-build keywords still offered')
+
+		const args = await completeInProject({
+			'src/main.mcb': 'function t {\n\texecute |\n}\n',
+		}, 'src/main.mcb')
+		assert.deepEqual(args.sort(), ['as', 'at', 'if', 'run'])
+
+		const inBlock = await completeInProject({
+			'src/main.mcb': 'function t {\n\texecute as @s run {\n\t\tscoreb|\n\t}\n}\n',
+		}, 'src/main.mcb')
+		assert.ok(inBlock.includes('scoreboard'), JSON.stringify(inBlock))
 	})
 })

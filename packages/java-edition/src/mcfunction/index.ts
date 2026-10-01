@@ -70,5 +70,6 @@ export const initialize = (
 		tree,
 		argument: parser.argument,
 		mcfunctionOptions,
+		getMockNodes: completer.getMockNodes,
 	})
 }

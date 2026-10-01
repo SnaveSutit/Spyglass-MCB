@@ -10,14 +10,19 @@ import {
 import * as core from '@spyglassmc/core'
 import { mockProjectData } from '@spyglassmc/core/test/utils.ts'
 import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
-import { entry as complete } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
+import { entry as completerEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
 import { entry as parse } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
+import { getMockNodes } from '@spyglassmc/java-edition/lib/mcfunction/completer/index.js'
+import * as mcf from '@spyglassmc/mcfunction'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { realArgument, tree } from '../parser/utils.ts'
 
 const parser = parse({ tree, argument: realArgument, commandOptions: {} })
+const complete = completerEntry({
+	command: mcf.completer.command(tree, getMockNodes),
+})
 
 /** Completes at the `|` in `content`; `extraFiles` are bound first. */
 function completeAt(
@@ -31,8 +36,7 @@ function completeAt(
 
 	const meta = new MetaRegistry()
 	registerBinder(meta)
-	// A no-op mock-node getter is fine; we only assert on keyword / template items.
-	meta.registerCompleter('mcfunction:command', () => [])
+	meta.registerCompleter('mcfunction:command_child/literal', core.completer.literal)
 	const project = mockProjectData({ meta, logger: Logger.create() })
 
 	const bindOne = (u: string, c: string) => {
@@ -77,6 +81,34 @@ describe('mc-build completer', () => {
 	it('offers a partially-typed statement keyword', () => {
 		const labels = completeAt('function t {\n\tsch|\n}')
 		assert.ok(labels.includes('schedule'))
+	})
+
+	it('offers vanilla command names at the start of a statement', () => {
+		const labels = completeAt('function t {\n\t|\n}')
+		assert.ok(labels.includes('say'), JSON.stringify(labels))
+		assert.ok(labels.includes('scoreboard'))
+	})
+
+	it('offers command names for a partially-typed first word', () => {
+		const labels = completeAt('function t {\n\tscor|\n}')
+		assert.ok(labels.includes('scoreboard'), JSON.stringify(labels))
+	})
+
+	it('completes command arguments after the first word', () => {
+		assert.deepEqual(
+			completeAt('function t {\n\texecute |\n}').sort(),
+			['as', 'at', 'if', 'run'],
+		)
+		assert.deepEqual(completeAt('function t {\n\tscoreboard |\n}').sort(), [
+			'objectives',
+			'players',
+		])
+	})
+
+	it('completes commands inside execute / block bodies', () => {
+		const labels = completeAt('function t {\n\texecute as @s run {\n\t\t|\n\t}\n}')
+		assert.ok(labels.includes('say'), JSON.stringify(labels))
+		assert.ok(labels.includes('execute'))
 	})
 
 	it('offers in-scope template names in a function body', () => {

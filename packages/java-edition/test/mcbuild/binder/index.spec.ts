@@ -114,6 +114,15 @@ describe('mcbuild binder', () => {
 		)
 		assert.equal(symbols.global[FUNCTION_CATEGORY]?.['main:tick']?.reference?.length, 2)
 	})
+
+	it('defines a clock as a function and links the calls inside it', () => {
+		const symbols = bind(
+			'file:///pack/src/main.mcb',
+			'dir d {\n\tclock loop 1t {\n\t\tfunction ./callee\n\t}\n\tfunction callee {\n\t}\n}',
+		)
+		assert.equal(symbols.global[FUNCTION_CATEGORY]?.['main:d/loop']?.definition?.length, 1)
+		assert.equal(symbols.global[FUNCTION_CATEGORY]?.['main:d/callee']?.reference?.length, 1)
+	})
 })
 
 const ref = (scheme: ReferenceNode['scheme'], path: string): ReferenceNode => ({

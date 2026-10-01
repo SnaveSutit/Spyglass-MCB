@@ -1,6 +1,7 @@
 import type * as core from '@spyglassmc/core'
 import type { EntryNode, TemplateArgKind } from '../node/index.js'
 import {
+	ClockDefinitionNode,
 	DirectoryDefinitionNode,
 	FunctionDefinitionNode,
 	JsonFileNode,
@@ -10,8 +11,8 @@ import {
 
 export const TEMPLATE_CATEGORY = 'mcbuild/template'
 /**
- * `function` definitions, keyed by `namespace:path` under a `src/` root (else
- * the `dir` path). Calls are recorded as references to the same key.
+ * `function` / `clock` definitions, keyed by `namespace:path` under a `src/`
+ * root (else the `dir` path). Calls are recorded as references to the same key.
  */
 export const FUNCTION_CATEGORY = 'mcbuild/function'
 
@@ -30,9 +31,8 @@ export interface TemplateSymbolData {
 }
 
 export function getTemplateData(symbol: core.Symbol | undefined): TemplateSymbolData | undefined {
-	const data = symbol?.data as { data?: unknown } | undefined
-	const inner = (data?.data ?? symbol?.data) as { overloads?: unknown } | undefined
-	return Array.isArray(inner?.overloads) ? (inner as TemplateSymbolData) : undefined
+	const data = symbol?.data as Partial<TemplateSymbolData> | undefined
+	return Array.isArray(data?.overloads) ? (data as TemplateSymbolData) : undefined
 }
 
 export interface FileBase {
@@ -113,7 +113,7 @@ function bindChildren(
 	for (const child of children) {
 		if (TemplateDefinitionNode.is(child)) {
 			bindTemplate(child, ctx)
-		} else if (FunctionDefinitionNode.is(child)) {
+		} else if (FunctionDefinitionNode.is(child) || ClockDefinitionNode.is(child)) {
 			bindFunction(child, ctx, dirStack, base)
 		} else if (DirectoryDefinitionNode.is(child)) {
 			if (child.body) {
@@ -130,8 +130,9 @@ function bindChildren(
 	}
 }
 
+/** mc-build compiles a `clock` to a function, same as `function`. */
 function bindFunction(
-	node: FunctionDefinitionNode,
+	node: FunctionDefinitionNode | ClockDefinitionNode,
 	ctx: core.BinderContext,
 	dirStack: string[],
 	base: FileBase | undefined,

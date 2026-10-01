@@ -162,6 +162,11 @@ export interface ClockDefinitionNode extends core.AstNode {
 	body?: BodyNode
 	children: core.AstNode[]
 }
+export namespace ClockDefinitionNode {
+	export function is(node: core.AstNode | undefined): node is ClockDefinitionNode {
+		return (node as ClockDefinitionNode | undefined)?.type === 'mcbuild:clock_definition'
+	}
+}
 
 export interface ImportNode extends core.AstNode {
 	type: 'mcbuild:import'

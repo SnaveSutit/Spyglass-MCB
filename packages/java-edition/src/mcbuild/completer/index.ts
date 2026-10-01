@@ -1,7 +1,13 @@
 import * as core from '@spyglassmc/core'
 import { CompletionItem, CompletionKind } from '@spyglassmc/core'
+import { CommandNode } from '@spyglassmc/mcfunction'
 import { fileBase, FUNCTION_CATEGORY, TEMPLATE_CATEGORY } from '../binder/index.js'
 import { DirectoryDefinitionNode } from '../node/index.js'
+
+export interface McbCompleterDeps {
+	/** `mcf.completer.command`; mcfunction has no per-node command completer to dispatch to. */
+	command: core.Completer<CommandNode>
+}
 
 const MCB_TLD_KEYWORDS = [
 	'function',
@@ -65,9 +71,7 @@ function pathTo(root: core.AstNode, offset: number): core.AstNode[] {
 	let current: core.AstNode | undefined = root
 	while (current && core.Range.contains(current.range, offset, true)) {
 		path.push(current)
-		current = (current.children ?? []).find((c) => core.Range.contains(c.range, offset, true)) as
-			| core.AstNode
-			| undefined
+		current = current.children?.find((c) => core.Range.contains(c.range, offset, true))
 	}
 	return path
 }
@@ -136,8 +140,7 @@ function delegate(path: core.AstNode[], ctx: core.CompleterContext): CompletionI
 	for (let i = path.length - 1; i >= 0; i--) {
 		const node = path[i]
 		if (
-			node.type !== 'mcbuild:entry' && !node.type.startsWith('mcbuild:')
-			&& ctx.meta.hasCompleter(node.type)
+			!node.type.startsWith('mcbuild:') && ctx.meta.hasCompleter(node.type)
 		) {
 			return ctx.meta.getCompleter(node.type)(node, ctx)
 		}
@@ -257,7 +260,50 @@ function referenceItems(
 	return items
 }
 
-export const entry: core.Completer<core.AstNode> = (node, ctx) => {
+/**
+ * The last command starting on the cursor's line before it. Containment alone
+ * misses a cursor after a trailing space (`execute |`).
+ */
+function embeddedCommandAt(
+	root: core.AstNode,
+	ctx: core.CompleterContext,
+): CommandNode | undefined {
+	const lineStart = ctx.doc.getText().lastIndexOf('\n', ctx.offset - 1) + 1
+	let best: CommandNode | undefined
+	const visit = (n: core.AstNode) => {
+		if (
+			CommandNode.is(n)
+			&& n.range.start >= lineStart && n.range.start <= ctx.offset
+			&& (!best || n.range.start >= best.range.start)
+		) {
+			best = n
+		}
+		for (const c of n.children ?? []) {
+			visit(c)
+		}
+	}
+	visit(root)
+	return best
+}
+
+function commandItems(
+	root: core.AstNode,
+	ctx: core.CompleterContext,
+	deps: McbCompleterDeps,
+): CompletionItem[] {
+	const node = embeddedCommandAt(root, ctx) ?? CommandNode.mock(ctx.offset)
+	return deps.command(node, ctx)
+}
+
+export function entry(deps: McbCompleterDeps): core.Completer<core.AstNode> {
+	return (node, ctx) => complete(node as core.AstNode, ctx, deps)
+}
+
+const complete = (
+	node: core.AstNode,
+	ctx: core.CompleterContext,
+	deps: McbCompleterDeps,
+): CompletionItem[] => {
 	const text = ctx.doc.getText()
 	const variant: 'mcb' | 'mcbt' = ctx.doc.uri.endsWith('.mcbt') ? 'mcbt' : 'mcb'
 
@@ -267,10 +313,11 @@ export const entry: core.Completer<core.AstNode> = (node, ctx) => {
 	const word = /[\w./^*#$:-]*$/.exec(linePrefix)?.[0] ?? ''
 	const wordRange = core.Range.create(ctx.offset - word.length, ctx.offset)
 
-	const path = pathTo(node as core.AstNode, ctx.offset)
+	const path = pathTo(node, ctx.offset)
 	const dirStack = path
 		.filter(DirectoryDefinitionNode.is)
 		.map((n) => n.id.value)
+	const container = containerKind(path, ctx.offset, variant)
 
 	// Past the first word, a line that isn't an mc-build statement is a command or JSON.
 	const hasSpace = /\S\s/.test(trimmed)
@@ -280,6 +327,9 @@ export const entry: core.Completer<core.AstNode> = (node, ctx) => {
 		const delegated = delegate(path, ctx)
 		if (delegated.length > 0) {
 			return delegated
+		}
+		if (container === 'statement') {
+			return commandItems(node, ctx, deps)
 		}
 	}
 
@@ -299,14 +349,14 @@ export const entry: core.Completer<core.AstNode> = (node, ctx) => {
 
 	const fnRefMatch = /^function\s+\S+\s+(\S*)$/.exec(trimmed)
 		|| /^function\s+(\S*)$/.exec(trimmed)
-	if (fnRefMatch && containerKind(path, ctx.offset, variant) === 'statement') {
+	if (fnRefMatch && container === 'statement') {
 		return referenceItems(ctx, wordRange, fnRefMatch[1] ?? '', dirStack)
 	}
 
 	const schedMatch = /^schedule\s+(.*)$/.exec(trimmed)
 	if (schedMatch) {
 		const rest = schedMatch[1]
-		if (/^(function\s+)?\S*$/.test(rest) && !rest.includes(' ')) {
+		if (/^\S*$/.test(rest)) {
 			return [
 				CompletionItem.create('function', wordRange, { kind: CompletionKind.Keyword }),
 				CompletionItem.create('clear', wordRange, { kind: CompletionKind.Keyword }),
@@ -345,12 +395,12 @@ export const entry: core.Completer<core.AstNode> = (node, ctx) => {
 	}
 
 	if (!hasSpace) {
-		switch (containerKind(path, ctx.offset, variant)) {
+		switch (container) {
 			case 'statement':
 				return [
 					...keywordItems(STATEMENT_KEYWORDS, wordRange),
 					...templateItems(ctx, wordRange),
-					...delegate(path, ctx),
+					...commandItems(node, ctx, deps),
 				]
 			case 'template-body':
 				return keywordItems(TEMPLATE_BODY_KEYWORDS, wordRange)
@@ -361,9 +411,8 @@ export const entry: core.Completer<core.AstNode> = (node, ctx) => {
 		}
 	}
 
+	if (container === 'statement') {
+		return commandItems(node, ctx, deps)
+	}
 	return delegate(path, ctx)
-}
-
-export function register(_meta: core.MetaRegistry): void {
-	// The language-level completer handles everything.
 }

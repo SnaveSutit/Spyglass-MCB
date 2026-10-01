@@ -1,5 +1,5 @@
 import type * as core from '@spyglassmc/core'
-import type * as mcf from '@spyglassmc/mcfunction'
+import * as mcf from '@spyglassmc/mcfunction'
 import * as binder from './binder/index.js'
 import * as checker from './checker/index.js'
 import * as completer from './completer/index.js'
@@ -16,6 +16,7 @@ export interface McbInitOptions {
 	tree: mcf.RootTreeNode
 	argument: mcf.ArgumentParserGetter
 	mcfunctionOptions: mcf.McfunctionOptions
+	getMockNodes: mcf.completer.MockNodesGetter
 }
 
 /** Language IDs from the `snavesutit-language-langmc` extension, which owns highlighting. */
@@ -50,21 +51,23 @@ export const initialize = (
 		argument: options.argument,
 		commandOptions,
 	})
+	const completerEntry = completer.entry({
+		command: mcf.completer.command(options.tree, options.getMockNodes),
+	})
 
 	meta.registerLanguage(LANGUAGE_ID, {
 		extensions: ['.mcb'],
 		triggerCharacters,
 		parser,
-		completer: completer.entry,
+		completer: completerEntry,
 	})
 	meta.registerLanguage(TEMPLATE_LANGUAGE_ID, {
 		extensions: ['.mcbt'],
 		triggerCharacters,
 		parser,
-		completer: completer.entry,
+		completer: completerEntry,
 	})
 
 	binder.register(meta)
 	checker.register(meta)
-	completer.register(meta)
 }

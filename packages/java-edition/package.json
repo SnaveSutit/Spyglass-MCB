@@ -33,8 +33,7 @@
     "@spyglassmc/mcfunction": "*",
     "@spyglassmc/nbt": "*",
     "@zip.js/zip.js": "^2.8.34",
-    "acorn": "^8.18.0",
-    "acorn-loose": "^8.5.2"
+    "acorn": "^8.18.0"
   },
   "publishConfig": {
     "access": "public"

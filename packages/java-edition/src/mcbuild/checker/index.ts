@@ -1,18 +1,11 @@
 import * as core from '@spyglassmc/core'
 import { localize } from '@spyglassmc/locales'
+import { CommandNode } from '@spyglassmc/mcfunction'
 import * as mcfChecker from '../../mcfunction/checker/index.js'
 import type { TemplateParamData } from '../binder/index.js'
 import { getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
-import type { CommandStatementNode, EqStatementNode, ReferenceNode } from '../node/index.js'
+import type { CommandStatementNode } from '../node/index.js'
 import { EntryNode } from '../node/index.js'
-
-const reference: core.SyncChecker<ReferenceNode> = () => {
-	// Target resolution is future work.
-}
-
-const eqStatement: core.SyncChecker<EqStatementNode> = () => {
-	// The eq parser reports diagnostics; objective resolution is future work.
-}
 
 /** Checks a command line as a template call if its first word is a template, else as a command. */
 const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
@@ -35,9 +28,8 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 		for (const e of node.deferredErrors ?? []) {
 			ctx.err.report(e.message, e.range, e.severity, e.info)
 		}
-		const cmd = node.children.find((c) => c.type === 'mcfunction:command')
-		if (cmd) {
-			mcfChecker.command(cmd as never, ctx)
+		if (CommandNode.is(node.command)) {
+			mcfChecker.command(node.command, ctx)
 		}
 	}
 	for (const child of node.children) {
@@ -196,7 +188,5 @@ function describeOverload(params: readonly TemplateParamData[]): string {
 }
 
 export function register(meta: core.MetaRegistry): void {
-	meta.registerChecker<ReferenceNode>('mcbuild:reference', reference)
-	meta.registerChecker<EqStatementNode>('mcbuild:eq_statement', eqStatement)
 	meta.registerChecker<CommandStatementNode>('mcbuild:command', command)
 }

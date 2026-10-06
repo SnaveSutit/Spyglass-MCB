@@ -7,6 +7,7 @@ import type { TemplateOverloadData, TemplateParamData } from '../binder/index.js
 import { describeParams, getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
 import type { DocComment } from '../doc.js'
 import { getDocComment, paramType } from '../doc.js'
+import { importAction, importedUris, isTemplateInScope } from '../imports.js'
 import type {
 	CommandStatementNode,
 	FunctionCallNode,
@@ -15,7 +16,7 @@ import type {
 	ReferenceNode,
 	TemplateDefinitionNode,
 } from '../node/index.js'
-import { EntryNode, IdentifierNode } from '../node/index.js'
+import { IdentifierNode } from '../node/index.js'
 import { checkParamType, paramTypeParser } from '../paramTypes.js'
 import { jsAst, walkJs } from '../parser/js.js'
 import { addTemplate } from '../quickFix.js'
@@ -25,17 +26,19 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 	const word = firstWord(node, ctx)
 	let isTemplate = false
 	if (word) {
-		for (const uri of importUris(node, ctx)) {
+		for (const uri of importedUris(node, ctx)) {
 			await ctx.ensureBindingStarted?.(uri)
 		}
 		const query = ctx.symbols.query(ctx.doc, TEMPLATE_CATEGORY, word.name)
 		query.ifKnown((symbol) => {
 			isTemplate = true
-			if (!isTemplateVisible(symbol, node, ctx)) {
+			if (!isTemplateInScope(symbol.definition, node, ctx)) {
+				const file = symbol.definition?.find((l) => l.uri.endsWith('.mcbt'))?.uri
 				ctx.err.report(
 					localize('mcbuild.checker.template.not-imported', localeQuote(word.name)),
 					word.range,
 					core.ErrorSeverity.Error,
+					file ? { codeAction: importAction(ctx.doc, file) } : undefined,
 				)
 				return
 			}
@@ -47,7 +50,7 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 	}
 
 	if (!isTemplate && word?.explicit) {
-		const templateFile = importUris(node, ctx).find((uri) => uri.endsWith('.mcbt'))
+		const templateFile = importedUris(node, ctx).find((uri) => uri.endsWith('.mcbt'))
 		ctx.err.report(
 			localize('mcbuild.checker.template.unknown', localeQuote(word.name)),
 			word.range,
@@ -91,69 +94,6 @@ function firstWord(node: CommandStatementNode, ctx: core.CheckerContext): FirstW
 		name: match[2],
 		range: core.Range.create(start, start + match[2].length),
 		explicit: match[1] !== undefined,
-	}
-}
-
-/**
- * Whether `symbol` is in scope like mc-build has it: defined in this file or one it imports
- * directly. Template bodies also see their caller's templates, so they're never flagged.
- */
-function isTemplateVisible(
-	symbol: core.Symbol,
-	node: core.AstNode,
-	ctx: core.CheckerContext,
-): boolean {
-	for (let n: core.AstNode | undefined = node; n; n = n.parent) {
-		if (n.type === 'mcbuild:template_definition') {
-			return true
-		}
-	}
-	const visible = new Set([ctx.doc.uri, ...importUris(node, ctx)])
-	return symbol.definition?.some((l) => visible.has(l.uri)) ?? false
-}
-
-/** Resolves the enclosing file's `import` statements to absolute URIs. */
-function importUris(node: core.AstNode, ctx: core.CheckerContext): string[] {
-	let entry: core.AstNode | undefined = node
-	while (entry && !EntryNode.is(entry)) {
-		entry = entry.parent
-	}
-	if (!entry) {
-		return []
-	}
-	const uris: string[] = []
-	for (const child of entry.children ?? []) {
-		if (child.type !== 'mcbuild:import') {
-			continue
-		}
-		const spec = (child as { path?: { value: string } }).path?.value
-		if (!spec) {
-			continue
-		}
-		uris.push(...resolveImport(spec, ctx.doc.uri, ctx.roots))
-	}
-	return uris
-}
-
-/**
- * Candidate URIs for an `import`. `/`-paths resolve from the mc-build project dir (the one holding
- * `src/`), like mc-build; outside `src/`, from each root.
- */
-export function resolveImport(spec: string, from: string, roots: readonly string[]): string[] {
-	try {
-		const srcIndex = from.lastIndexOf('/src/')
-		if (spec.startsWith('/') && srcIndex >= 0) {
-			return [new URL('.' + spec, from.slice(0, srcIndex + 1)).href]
-		}
-		if (spec.startsWith('/')) {
-			return roots.map((root) =>
-				new URL('.' + spec, root.endsWith('/') ? root : root + '/').href
-			)
-		}
-		const rel = spec.startsWith('./') || spec.startsWith('../') ? spec : './' + spec
-		return [new URL(rel, from).href]
-	} catch {
-		return []
 	}
 }
 

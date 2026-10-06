@@ -10,10 +10,8 @@ import {
 import * as core from '@spyglassmc/core'
 import { mockProjectData } from '@spyglassmc/core/test/utils.ts'
 import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
-import {
-	register as registerChecker,
-	resolveImport,
-} from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
+import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
+import { relativeSpec, resolveImport } from '@spyglassmc/java-edition/lib/mcbuild/imports.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -171,5 +169,14 @@ describe('mcbuild resolveImport()', () => {
 			'file:///ws/t.mcbt',
 			'file:///x/t.mcbt',
 		])
+	})
+})
+
+describe('mcbuild relativeSpec()', () => {
+	it('spells imports the way mc-build resolves them', () => {
+		const from = 'file:///p/src/ns/main.mcb'
+		assert.equal(relativeSpec(from, 'file:///p/src/ns/t.mcbt'), './t.mcbt')
+		assert.equal(relativeSpec(from, 'file:///p/src/lib/t.mcbt'), '../lib/t.mcbt')
+		assert.equal(relativeSpec(from, 'file:///p/src/ns/a/t.mcbt'), './a/t.mcbt')
 	})
 })

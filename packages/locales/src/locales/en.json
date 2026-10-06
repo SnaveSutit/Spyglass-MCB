@@ -91,6 +91,7 @@
   "mcbuild.checker.template.unknown-type": "Unknown param type %0%; expected a Minecraft argument type like entity, vec3 or resource:item",
   "mcbuild.code-action.add-function": "Add function %0% to %1%",
   "mcbuild.code-action.add-template": "Add template %0% to %1%",
+  "mcbuild.code-action.import": "Import %0%",
   "mcbuild.parser.clock.expected-name-time": "Expected a name and a time for the clock",
   "mcbuild.parser.eq.expected-operator": "Expected a scoreboard operator (=, +=, -=, *=, /=, %=) but got %0%",
   "mcbuild.parser.eq.incomplete": "Incomplete eq expression",

@@ -2,6 +2,7 @@ import * as core from '@spyglassmc/core'
 import { CompletionItem, CompletionKind } from '@spyglassmc/core'
 import { CommandNode } from '@spyglassmc/mcfunction'
 import { fileBase, FUNCTION_CATEGORY, TEMPLATE_CATEGORY } from '../binder/index.js'
+import { importEdit, isTemplateInScope, relativeSpec } from '../imports.js'
 import type { CompileTimeLoopNode } from '../node/index.js'
 import { DirectoryDefinitionNode, TemplateOverloadNode } from '../node/index.js'
 
@@ -127,13 +128,27 @@ function declaredNames(ctx: core.CompleterContext, category: string): string[] {
 	)
 }
 
-function templateItems(ctx: core.CompleterContext, range: core.RangeLike): CompletionItem[] {
-	return declaredNames(ctx, TEMPLATE_CATEGORY).map((name) =>
-		CompletionItem.create(name, range, {
+/** Every template; ones not in scope add the import of their `.mcbt` when picked. */
+function templateItems(
+	ctx: core.CompleterContext,
+	range: core.RangeLike,
+	at: core.AstNode,
+): CompletionItem[] {
+	return declaredNames(ctx, TEMPLATE_CATEGORY).map((name) => {
+		const definitions = ctx.symbols.query(ctx.doc, TEMPLATE_CATEGORY, name).symbol?.definition
+		const file = definitions?.find((l) => l.uri.endsWith('.mcbt'))?.uri
+		if (isTemplateInScope(definitions, at, ctx) || !file) {
+			return CompletionItem.create(name, range, {
+				kind: CompletionKind.Function,
+				detail: 'mc-build template',
+			})
+		}
+		return CompletionItem.create(name, range, {
 			kind: CompletionKind.Function,
-			detail: 'mc-build template',
+			detail: `mc-build template (import ${relativeSpec(ctx.doc.uri, file)})`,
+			additionalEdits: [importEdit(ctx.doc, file)],
 		})
-	)
+	})
 }
 
 /** Runs the completer of the deepest non-mc-build node at the cursor. */
@@ -481,7 +496,7 @@ const complete = (
 			case 'statement':
 				return [
 					...keywordItems(STATEMENT_KEYWORDS, wordRange),
-					...templateItems(ctx, wordRange),
+					...templateItems(ctx, wordRange, path[path.length - 1] ?? node),
 					...commandItems(node, ctx, deps),
 				]
 			case 'template-body':

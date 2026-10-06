@@ -912,6 +912,20 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			)
 		})
 
+		it('renames a dir and every path spelled through it', async () => {
+			const main = (def: string, dir = def) =>
+				`dir ${def} {\n\tfunction foo {\n\t\tfunction ./bar\n\t}\n\tfunction bar {\n\t}\n}\n`
+				+ `function t {\n\tfunction ./${dir}/foo\n\tfunction main:${dir}/bar\n\tfunction *${dir}/foo\n}\n`
+				+ 'function tools/foo2 {\n}\nfunction u {\n\tfunction ./tools/foo2\n}\n'
+			const result = await renameAt(main('to|ols', 'tools'), 'kit', {
+				'/root/src/b.mcb': 'function x {\n\tfunction main:tools/foo\n}\n',
+			})
+			assert.deepEqual(result, {
+				'src/main.mcb': main('kit'),
+				'src/b.mcb': 'function x {\n\tfunction main:kit/foo\n}\n',
+			})
+		})
+
 		it("skips generated copies and refuses what it can't rename", async () => {
 			const generated = await renameAt('function fo|o {\n}\n', 'bar', {
 				'/root/mcb.config.js': '',

@@ -434,4 +434,15 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			await project.close()
 		}
 	})
+
+	it('reports inline and block execute errors once, without a spurious one after `run`', async () => {
+		const { project, errors, uri } = await openAt(
+			'function t {\n\texecute as @a run say hi\n\texecute as @a run {\n\t\tsay hi\n\t}\n}\n|',
+		)
+		try {
+			assert.deepEqual(messagesFor(errors, uri), [])
+		} finally {
+			await project.close()
+		}
+	})
 })

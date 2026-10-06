@@ -715,6 +715,8 @@ class ParseState {
 			}
 			this.ctx.err.report(e.message, e.range, e.severity, e.info)
 		}
+		// Replayed here, so the command checker mustn't replay them again.
+		delete cmd.deferredErrors
 	}
 
 	private anonymousBlock(): BlockNode {

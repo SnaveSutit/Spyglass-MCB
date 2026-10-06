@@ -122,6 +122,8 @@ describe('mcbuild real-pack diagnostics', {
 				meta,
 				logger: Logger.create(),
 				ctx: { loadedVersion: '1.21' },
+				// mc-build's `/` imports resolve from here when there's no `src/`.
+				roots: [`file://${pack.srcDir.replace(/\/$/, '')}/`],
 			})
 			const mcbParser = parse({ tree, argument: realArgument, commandOptions: {} })
 

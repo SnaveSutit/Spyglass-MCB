@@ -750,4 +750,34 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			}
 		})
 	})
+
+	describe('template imports', () => {
+		const files = {
+			'/root/src/t.mcbt': 'template greet {\n\twith {\n\t\tsay hi\n\t}\n}\n',
+			// Template bodies may use the caller's templates, which can't be known here.
+			'/root/src/u.mcbt': 'template wave {\n\twith {\n\t\tgreet\n\t}\n}\n',
+		}
+
+		it("flags templates whose file isn't imported", async () => {
+			const { project, errors, uri } = await openAt('function t {\n\tgreet\n}\n|', files)
+			try {
+				assert.deepEqual(messagesFor(errors, uri), ["Template “greet” isn't imported"])
+				assert.deepEqual(messagesFor(errors, `${ProjectRoot}src/u.mcbt`), [])
+			} finally {
+				await project.close()
+			}
+		})
+
+		it('only sees templates defined in directly imported files', async () => {
+			const { project, errors, uri } = await openAt(
+				'import ./u.mcbt\nfunction t {\n\twave\n\tgreet\n}\n|',
+				{ ...files, '/root/src/u.mcbt': 'import ./t.mcbt\n' + files['/root/src/u.mcbt'] },
+			)
+			try {
+				assert.deepEqual(messagesFor(errors, uri), ["Template “greet” isn't imported"])
+			} finally {
+				await project.close()
+			}
+		})
+	})
 })

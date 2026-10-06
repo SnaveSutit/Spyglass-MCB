@@ -85,6 +85,7 @@
   "mcbuild.checker.macro.unknown": "%1% has no macro argument %0%",
   "mcbuild.checker.repeat.args": "Invalid arguments for REPEAT (%0%)",
   "mcbuild.checker.template.no-overload": "No overload of template %0% matches these arguments. Expected: %1%",
+  "mcbuild.checker.template.not-imported": "Template %0% isn't imported",
   "mcbuild.checker.template.param-type": "%0% should be %1%: %2%",
   "mcbuild.checker.template.unknown": "Unknown template %0%",
   "mcbuild.checker.template.unknown-type": "Unknown param type %0%; expected a Minecraft argument type like entity, vec3 or resource:item",

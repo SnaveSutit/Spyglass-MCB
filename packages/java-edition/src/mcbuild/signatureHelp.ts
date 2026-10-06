@@ -1,6 +1,8 @@
 import type * as core from '@spyglassmc/core'
 import type { TemplateParamData } from './binder/index.js'
 import { getTemplateData, TEMPLATE_CATEGORY } from './binder/index.js'
+import type { DocComment } from './doc.js'
+import { paramType } from './doc.js'
 import { EntryNode } from './node/index.js'
 
 /** Signature help for a template call, one signature per overload. */
@@ -23,9 +25,7 @@ export const templateSignatureHelp: core.SignatureHelpProvider<core.FileNode<cor
 	}
 	const args = [...typed.slice(word[0].length).matchAll(/<%[^]*?%>|\S+/g)]
 	const index = /\s$/.test(typed) ? args.length : Math.max(args.length - 1, 0)
-	const docs = new Map(data.doc?.params.map((p) => [p.name, p.desc]))
-
-	const signatures = data.overloads.map(({ params }): core.SignatureInfo => {
+	const signatures = data.overloads.map(({ params, doc }): core.SignatureInfo => {
 		let label = word[1]
 		const parameters: core.ParameterInfo[] = []
 		for (const param of params) {
@@ -33,19 +33,31 @@ export const templateSignatureHelp: core.SignatureHelpProvider<core.FileNode<cor
 			const text = param.kind === 'literal' ? param.name : `${param.name}:${param.kind}`
 			parameters.push({
 				label: [label.length, label.length + text.length],
-				documentation: docs.get(param.name) || undefined,
+				documentation: paramDocs(param.name, doc, data.doc),
 			})
 			label += text
 		}
 		return {
 			label,
-			documentation: data.doc?.text || undefined,
+			documentation: doc?.text || data.doc?.text || undefined,
 			parameters,
 			activeParameter: activeParam(params, index),
 		}
 	})
 	const fitting = data.overloads.findIndex(({ params }) => activeParam(params, index) >= 0)
 	return { signatures, activeSignature: Math.max(fitting, 0) }
+}
+
+/** `` `Type` — description `` for a param, from the `with` overload's doc, else the template's. */
+function paramDocs(
+	name: string,
+	overloadDoc: DocComment | undefined,
+	templateDoc: DocComment | undefined,
+): string | undefined {
+	const desc = overloadDoc?.params.find((p) => p.name === name)?.desc
+		|| templateDoc?.params.find((p) => p.name === name)?.desc
+	const type = paramType(name, overloadDoc, templateDoc)
+	return [type && `\`${type}\``, desc].filter(Boolean).join(' — ') || undefined
 }
 
 /** The param the `index`th word goes to: `block` params take no word, `raw` takes the rest. */

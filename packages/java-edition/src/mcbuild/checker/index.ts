@@ -3,18 +3,20 @@ import { localeQuote, localize } from '@spyglassmc/locales'
 import { CommandNode } from '@spyglassmc/mcfunction'
 import type * as acorn from 'acorn'
 import * as mcfChecker from '../../mcfunction/checker/index.js'
-import type { TemplateParamData } from '../binder/index.js'
+import type { TemplateOverloadData, TemplateParamData } from '../binder/index.js'
 import { describeParams, getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
 import type { DocComment } from '../doc.js'
-import { getDocComment } from '../doc.js'
+import { getDocComment, paramType } from '../doc.js'
 import type {
 	CommandStatementNode,
 	FunctionCallNode,
 	FunctionDefinitionNode,
 	JsNode,
 	ReferenceNode,
+	TemplateDefinitionNode,
 } from '../node/index.js'
 import { EntryNode, IdentifierNode } from '../node/index.js'
+import { checkParamType, paramTypeParser } from '../paramTypes.js'
 import { jsAst, walkJs } from '../parser/js.js'
 import { addTemplate } from '../quickFix.js'
 
@@ -132,6 +134,8 @@ export function resolveImport(spec: string, from: string, roots: readonly string
 interface CallArg {
 	kind: 'js' | 'word'
 	text: string
+	/** Document offsets. */
+	range: core.Range
 }
 
 /**
@@ -151,14 +155,20 @@ function checkTemplateArgs(
 
 	const argsEnd = node.trailing ? node.trailing.range.start : node.range.end
 	const text = ctx.doc.getText().slice(word.range.end, argsEnd)
-	const args: CallArg[] = [...text.matchAll(/<%[^]*?%>|\S+/g)].map((m) => ({
-		kind: m[0].startsWith('<%') ? 'js' : 'word',
-		text: m[0],
-	}))
+	const args: CallArg[] = [...text.matchAll(/<%[^]*?%>|\S+/g)].map((m) => {
+		const start = word.range.end + m.index
+		return {
+			kind: m[0].startsWith('<%') ? 'js' : 'word',
+			text: m[0],
+			range: core.Range.create(start, start + m[0].length),
+		}
+	})
 	const hasBlock = !!node.trailing
 
 	for (const overload of data.overloads) {
-		if (matchOverload(overload.params, args, hasBlock)) {
+		const matched = matchOverload(overload.params, args, hasBlock, ctx)
+		if (matched) {
+			checkParamTypes(overload, data.doc, matched, ctx)
 			return
 		}
 	}
@@ -174,50 +184,111 @@ function checkTemplateArgs(
 	)
 }
 
+/**
+ * The argument each param takes (`raw` takes the rest as one; `block` takes none), or `undefined`
+ * if the call doesn't fit the overload.
+ */
 function matchOverload(
 	params: readonly TemplateParamData[],
 	args: readonly CallArg[],
 	hasBlock: boolean,
-): boolean {
+	ctx: core.CheckerContext,
+): (CallArg | undefined)[] | undefined {
+	const taken: (CallArg | undefined)[] = []
 	let ai = 0
 	let blockUsed = false
 	for (const param of params) {
 		if (param.kind === 'block') {
 			if (!hasBlock || blockUsed) {
-				return false
+				return undefined
 			}
 			blockUsed = true
+			taken.push(undefined)
 			continue
 		}
 		if (param.kind === 'raw') {
 			if (ai >= args.length) {
-				return false
+				return undefined
 			}
+			const range = core.Range.create(args[ai].range.start, args[args.length - 1].range.end)
+			const text = ctx.doc.getText().slice(range.start, range.end)
+			taken.push({ kind: /<%/.test(text) ? 'js' : 'word', text, range })
 			ai = args.length
 			continue
 		}
 		const arg = args[ai]
 		if (!arg) {
-			return false
+			return undefined
 		}
 		if (param.kind === 'js') {
 			if (arg.kind !== 'js') {
-				return false
+				return undefined
 			}
 		} else if (arg.kind !== 'js') {
 			if (param.kind === 'int' && Number.isNaN(Number.parseInt(arg.text, 10))) {
-				return false
+				return undefined
 			}
 			if (param.kind === 'float' && Number.isNaN(Number.parseFloat(arg.text))) {
-				return false
+				return undefined
 			}
 			if (param.kind === 'literal' && arg.text !== param.name) {
-				return false
+				return undefined
 			}
 		}
+		taken.push(arg)
 		ai++
 	}
-	return ai === args.length && (!hasBlock || blockUsed)
+	return ai === args.length && (!hasBlock || blockUsed) ? taken : undefined
+}
+
+/** Checks arguments against `@param name {Type}` from the overload's or the template's doc. */
+function checkParamTypes(
+	overload: TemplateOverloadData,
+	templateDoc: DocComment | undefined,
+	taken: readonly (CallArg | undefined)[],
+	ctx: core.CheckerContext,
+) {
+	for (const [i, param] of overload.params.entries()) {
+		const arg = taken[i]
+		const type = paramType(param.name, overload.doc, templateDoc)
+		const parser = type && paramTypeParser(type)
+		if (!arg || arg.kind === 'js' || !parser) {
+			continue
+		}
+		const problem = checkParamType(arg.text, parser, ctx)
+		if (problem) {
+			ctx.err.report(
+				localize('mcbuild.checker.template.param-type', localeQuote(param.name), type, problem),
+				arg.range,
+				core.ErrorSeverity.Warning,
+			)
+		}
+	}
+}
+
+/** Warns on `@param` types that aren't Minecraft argument types, above the template or a `with`. */
+const templateDefinition: core.Checker<TemplateDefinitionNode> = async (node, ctx) => {
+	const siblings = node.parent?.children ?? []
+	const above: core.AstNode[] = []
+	for (let i = siblings.indexOf(node) - 1; i >= 0 && core.CommentNode.is(siblings[i]); i--) {
+		above.push(siblings[i])
+	}
+	for (const comment of [...above, ...node.children].filter(core.CommentNode.is)) {
+		const text = ctx.doc.getText().slice(comment.range.start, comment.range.end)
+		const match = /@param\s+\S+\s*\{([^}]*)\}/.exec(text)
+		if (match && !paramTypeParser(match[1].trim())) {
+			const start = comment.range.start + match.index + match[0].length - 1 - match[1].length
+			ctx.err.report(
+				localize('mcbuild.checker.template.unknown-type', localeQuote(match[1].trim())),
+				core.Range.create(start, start + match[1].length),
+				core.ErrorSeverity.Warning,
+			)
+		}
+	}
+	// This checker stops the dispatcher descending, so check children by hand.
+	for (const child of node.children) {
+		await core.checker.fallback(child, ctx)
+	}
 }
 
 /** Warns on `$(x)` in a documented function's body when `x` has no `@arg`. */
@@ -421,4 +492,5 @@ export function register(meta: core.MetaRegistry): void {
 	meta.registerChecker<FunctionCallNode>('mcbuild:function_call', functionCall)
 	meta.registerChecker<ReferenceNode>('mcbuild:reference', reference)
 	meta.registerChecker<JsNode>('mcbuild:js', js)
+	meta.registerChecker<TemplateDefinitionNode>('mcbuild:template_definition', templateDefinition)
 }

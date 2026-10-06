@@ -9,6 +9,7 @@ import {
 	JsonFileNode,
 	ReferenceNode,
 	TemplateDefinitionNode,
+	TemplateOverloadNode,
 } from '../node/index.js'
 
 export const TEMPLATE_CATEGORY = 'mcbuild/template'
@@ -29,6 +30,8 @@ export interface TemplateParamData {
 
 export interface TemplateOverloadData {
 	params: TemplateParamData[]
+	/** The `#>` block above this `with`. */
+	doc?: DocComment
 }
 
 /** `a:int mode b:block`, as written in a `with` line. */
@@ -298,9 +301,16 @@ function bindTemplate(
 	if (node.id.value.length === 0) {
 		return
 	}
-	const overloads: TemplateOverloadData[] = node.overloads.map((overload) => ({
-		params: overload.params.map((p) => ({ name: p.name.value, kind: p.kind })),
-	}))
+	const overloads: TemplateOverloadData[] = []
+	for (const [i, child] of node.children.entries()) {
+		if (TemplateOverloadNode.is(child)) {
+			const doc = docCommentAbove(node.children, i, ctx.doc.getText())
+			overloads.push({
+				params: child.params.map((p) => ({ name: p.name.value, kind: p.kind })),
+				...(doc ? { doc } : {}),
+			})
+		}
+	}
 	ctx.symbols.query(ctx.doc, TEMPLATE_CATEGORY, node.id.value).enter({
 		data: {
 			desc: templateDesc(node.id.value, overloads, doc),

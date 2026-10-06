@@ -42,6 +42,11 @@ export interface LanguageOptions {
 	triggerCharacters?: string[]
 	parser?: Parser<AstNode>
 	completer?: Completer<any>
+	/**
+	 * Whether open documents of this language are re-checked when another document of an opted-in
+	 * language changes, for languages whose diagnostics depend on symbols from other files.
+	 */
+	recheckOnCrossFileChange?: boolean
 }
 
 export type UriPredicate = (uri: string, ctx: UriPredicateContext) => boolean

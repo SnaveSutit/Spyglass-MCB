@@ -13,7 +13,7 @@ import {
 	EventDispatcher,
 	fileUtil,
 	Logger,
-	Project,
+	Service,
 	UriStore,
 	VanillaConfig,
 } from '@spyglassmc/core'
@@ -64,11 +64,17 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	const completer = mcbCompleterEntry({
 		command: mcf.completer.command(tree, getMockNodes),
 	})
-	meta.registerLanguage('mc-build', { extensions: ['.mcb'], parser, completer })
+	meta.registerLanguage('mc-build', {
+		extensions: ['.mcb'],
+		parser,
+		completer,
+		recheckOnCrossFileChange: true,
+	})
 	meta.registerLanguage('mc-build-template', {
 		extensions: ['.mcbt'],
 		parser,
 		completer,
+		recheckOnCrossFileChange: true,
 	})
 	meta.registerCompleter('mcfunction:command_child/literal', coreCompleter.literal)
 	registerBinder(meta)
@@ -77,7 +83,8 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 }
 
 interface Harness {
-	project: Project
+	project: Service['project']
+	service: Service
 	errors: Map<string, readonly PosRangeLanguageError[]>
 }
 
@@ -88,14 +95,17 @@ async function setup(files: Record<string, string>): Promise<Harness> {
 		logger: Logger.noop(),
 		nodeFsp: fs.promises as unknown as typeof fsp,
 	})
-	const project = new Project({
-		cacheRoot: CacheRoot,
-		defaultConfig: ConfigService.merge(VanillaConfig, { env: { dependencies: [] } }),
-		externals,
-		initializers: [mcbuildInitializer],
+	const service = new Service({
 		logger: Logger.noop(),
-		projectRoots: [ProjectRoot],
+		project: {
+			cacheRoot: CacheRoot,
+			defaultConfig: ConfigService.merge(VanillaConfig, { env: { dependencies: [] } }),
+			externals,
+			initializers: [mcbuildInitializer],
+			projectRoots: [ProjectRoot],
+		},
 	})
+	const { project } = service
 	const errors = new Map<string, readonly PosRangeLanguageError[]>()
 	project.on('documentErrored', ({ uri, errors: e }) => errors.set(uri, e))
 	project.on('documentUpdated', ({ doc }) => {
@@ -105,7 +115,7 @@ async function setup(files: Record<string, string>): Promise<Harness> {
 	})
 	await project.init()
 	await project.ready({ projectRootsWatcher: new TestFileWatcher(externals, [ProjectRoot]) })
-	return { project, errors }
+	return { project, service, errors }
 }
 
 function messagesFor(errors: Harness['errors'], uri: string): string[] {
@@ -131,24 +141,27 @@ describe('mcbuild integration (real Project pipeline)', () => {
 		}
 	})
 
-	it('re-checks the caller after a template is added to an imported file', async () => {
+	it('re-checks an open caller after a template is added to an open imported file', async () => {
 		const mainUri = `${ProjectRoot}src/main.mcb`
 		const templatesUri = `${ProjectRoot}src/templates.mcbt`
+		const main = 'import ./templates.mcbt\nfunction demo {\n\twrap {\n\t\tsay body\n\t}\n}\n'
 		const { project, errors } = await setup({
 			'/root/pack.mcmeta': JSON.stringify({ pack: { pack_format: 48, description: '' } }),
-			'/root/src/main.mcb':
-				'import ./templates.mcbt\nfunction demo {\n\twrap {\n\t\tsay body\n\t}\n}\n',
+			'/root/src/main.mcb': main,
 			'/root/src/templates.mcbt': '# empty\n',
 		})
 		try {
 			await project.analyzeProject()
-			// Not a template yet; define it and re-analyze.
+			await project.onDidOpen(mainUri, 'mc-build', 1, main)
+			await project.onDidOpen(templatesUri, 'mc-build-template', 1, '# empty\n')
+			await project.ensureClientManagedChecked(mainUri)
+			assert.notDeepEqual(messagesFor(errors, mainUri), [], 'not a template yet')
+
 			await project.onDidChange(
 				templatesUri,
 				[{ text: 'template wrap {\n\twith content:block {\n\t\tsay wrapped\n\t}\n}\n' }],
-				1,
+				2,
 			)
-			await project.analyzeProject()
 			assert.deepEqual(messagesFor(errors, mainUri), [])
 		} finally {
 			await project.close()
@@ -361,5 +374,34 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			'src/main.mcb': 'function t {\n\texecute as @s run {\n\t\tscoreb|\n\t}\n}\n',
 		}, 'src/main.mcb')
 		assert.ok(inBlock.includes('scoreboard'), JSON.stringify(inBlock))
+	})
+
+	/** Opens `main` (cursor marked by `|`) in a fresh project and returns the service, doc, node and offset. */
+	async function openAt(main: string, extra: Record<string, string> = {}) {
+		const offset = main.indexOf('|')
+		const text = main.replace('|', '')
+		const uri = `${ProjectRoot}src/main.mcb`
+		const harness = await setup({
+			'/root/pack.mcmeta': JSON.stringify({ pack: { pack_format: 48, description: '' } }),
+			'/root/src/main.mcb': text,
+			...extra,
+		})
+		await harness.project.analyzeProject()
+		await harness.project.onDidOpen(uri, 'mc-build', 1, text)
+		const docAndNode = await harness.project.ensureClientManagedChecked(uri)
+		assert.ok(docAndNode)
+		return { ...harness, ...docAndNode, offset, uri }
+	}
+
+	it('reports vanilla command errors through the pipeline', async () => {
+		const { project, errors, uri } = await openAt('function t {\n\tbogus cmd\n\tsay hi\n}\n|')
+		try {
+			assert.ok(
+				messagesFor(errors, uri).some((m) => /Expected/.test(m)),
+				JSON.stringify(messagesFor(errors, uri)),
+			)
+		} finally {
+			await project.close()
+		}
 	})
 })

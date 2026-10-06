@@ -63,6 +63,7 @@ export function parseCommandStatement(
 		Object.defineProperty(node, 'deferredErrors', {
 			value: [...commandCtx.err.errors],
 			enumerable: false,
+			configurable: true,
 		})
 	}
 	return node

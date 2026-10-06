@@ -60,12 +60,14 @@ export const initialize = (
 		triggerCharacters,
 		parser,
 		completer: completerEntry,
+		recheckOnCrossFileChange: true,
 	})
 	meta.registerLanguage(TEMPLATE_LANGUAGE_ID, {
 		extensions: ['.mcbt'],
 		triggerCharacters,
 		parser,
 		completer: completerEntry,
+		recheckOnCrossFileChange: true,
 	})
 
 	binder.register(meta)

@@ -79,4 +79,9 @@ export type CodeActionChange = {
 } | {
 	type: 'create'
 	uri: string
+} | {
+	/** Appends `text` to the end of the file at `uri`, creating it if needed. */
+	type: 'append'
+	uri: string
+	text: string
 }

@@ -22,7 +22,8 @@ import {
 } from '../processor/index.js'
 import type { Linter } from '../processor/linter/Linter.js'
 import type { SignatureHelpProvider } from '../processor/SignatureHelpProvider.js'
-import type { UriPredicateContext } from '../service/index.js'
+import type { LinterContext, UriPredicateContext } from '../service/index.js'
+import type { LanguageErrorAction } from '../source/index.js'
 import type { DependencyKey, DependencyProvider } from './Dependency.js'
 import type { FileExtension } from './fileUtil.js'
 import type { SymbolRegistrar } from './SymbolRegistrar.js'
@@ -48,6 +49,12 @@ export interface LanguageOptions {
 	 */
 	recheckOnCrossFileChange?: boolean
 }
+
+/** Builds the quick fix for an undeclared symbol. `undefined` falls back to the {@link UriBuilder}. */
+export type UndeclaredSymbolAction = (
+	identifier: string,
+	ctx: LinterContext,
+) => LanguageErrorAction | undefined
 
 export interface GeneratedFolder {
 	marker: string
@@ -97,6 +104,7 @@ export class MetaRegistry {
 	readonly #custom = new Map<string, Map<string, unknown>>()
 	readonly #uriBinders = new Set<UriBinder>()
 	readonly #uriBuilders = new Map<string, UriBuilder>()
+	readonly #undeclaredSymbolActions = new Map<string, UndeclaredSymbolAction>()
 	#uriSorter: UriSorter = () => 0
 
 	constructor() {
@@ -336,6 +344,13 @@ export class MetaRegistry {
 	}
 	public registerUriBuilder(category: string, builder: UriBuilder): void {
 		this.#uriBuilders.set(category, builder)
+	}
+
+	public getUndeclaredSymbolAction(category: string): UndeclaredSymbolAction | undefined {
+		return this.#undeclaredSymbolActions.get(category)
+	}
+	public registerUndeclaredSymbolAction(category: string, action: UndeclaredSymbolAction): void {
+		this.#undeclaredSymbolActions.set(category, action)
 	}
 
 	public setUriSorter(uriSorter: UriSorterRegistration): void {

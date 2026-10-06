@@ -7,6 +7,7 @@ import * as mcdoc from '@spyglassmc/mcdoc'
 import envPaths from 'env-paths'
 import url from 'url'
 import * as util from 'util'
+import { TextDocument } from 'vscode-languageserver-textdocument'
 import * as ls from 'vscode-languageserver/node.js'
 import type {
 	CustomInitializationOptions,
@@ -352,8 +353,30 @@ connection.onCodeAction(async ({ textDocument: { uri }, range }) => {
 	}
 	const { doc, node } = docAndNode
 	const codeActions = service.getCodeActions(node, doc, toCore.range(range, doc))
-	return codeActions.map(a => toLS.codeAction(a, doc))
+	const targets = new Map<string, TextDocument | undefined>()
+	for (const action of codeActions) {
+		for (const change of action.changes ?? []) {
+			if (change.type === 'append' && !targets.has(change.uri)) {
+				targets.set(change.uri, await readTextDocument(change.uri))
+			}
+		}
+	}
+	return codeActions.map(a => toLS.codeAction(a, doc, targets))
 })
+
+/** The open document at `uri`, else its contents on disk; `undefined` if it doesn't exist. */
+async function readTextDocument(uri: string): Promise<TextDocument | undefined> {
+	const open = service.project.getClientManaged(uri)?.doc
+	if (open) {
+		return open
+	}
+	try {
+		const text = core.bufferToString(await fileUtil.readFile(externals, uri))
+		return TextDocument.create(uri, '', 0, text)
+	} catch {
+		return undefined
+	}
+}
 
 connection.onColorPresentation(async ({ textDocument: { uri }, color, range }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)

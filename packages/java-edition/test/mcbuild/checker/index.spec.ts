@@ -10,7 +10,10 @@ import {
 import * as core from '@spyglassmc/core'
 import { mockProjectData } from '@spyglassmc/core/test/utils.ts'
 import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
-import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
+import {
+	register as registerChecker,
+	resolveImport,
+} from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -146,5 +149,27 @@ describe('mcbuild checker — template calls', () => {
 
 	it('accepts a js span for an int param (runtime value cannot be checked)', async () => {
 		assert.deepEqual((await call('t <%40 + 2%>')).map((e) => e.message), [])
+	})
+})
+
+describe('mcbuild resolveImport()', () => {
+	const from = 'file:///ws/pack/src/ns/main.mcb'
+
+	it('resolves `/` from the mc-build project dir', () => {
+		assert.deepEqual(resolveImport('/lib/t.mcbt', from, ['file:///ws/']), [
+			'file:///ws/pack/lib/t.mcbt',
+		])
+	})
+
+	it('resolves relative paths from the importing file', () => {
+		assert.deepEqual(resolveImport('../t.mcbt', from, []), ['file:///ws/pack/src/t.mcbt'])
+		assert.deepEqual(resolveImport('t.mcbt', from, []), ['file:///ws/pack/src/ns/t.mcbt'])
+	})
+
+	it('falls back to each root outside `src/`', () => {
+		assert.deepEqual(resolveImport('/t.mcbt', 'file:///ws/a.mcb', ['file:///ws/', 'file:///x']), [
+			'file:///ws/t.mcbt',
+			'file:///x/t.mcbt',
+		])
 	})
 })

@@ -102,19 +102,31 @@ function importUris(node: core.AstNode, ctx: core.CheckerContext): string[] {
 		if (!spec) {
 			continue
 		}
-		try {
-			if (spec.startsWith('/')) {
-				for (const root of ctx.roots) {
-					uris.push(new URL('.' + spec, root.endsWith('/') ? root : root + '/').href)
-				}
-			} else {
-				const rel = spec.startsWith('./') || spec.startsWith('../') ? spec : './' + spec
-				uris.push(new URL(rel, ctx.doc.uri).href)
-			}
-		} catch {
-		}
+		uris.push(...resolveImport(spec, ctx.doc.uri, ctx.roots))
 	}
 	return uris
+}
+
+/**
+ * Candidate URIs for an `import`. `/`-paths resolve from the mc-build project dir (the one holding
+ * `src/`), like mc-build; outside `src/`, from each root.
+ */
+export function resolveImport(spec: string, from: string, roots: readonly string[]): string[] {
+	try {
+		const srcIndex = from.lastIndexOf('/src/')
+		if (spec.startsWith('/') && srcIndex >= 0) {
+			return [new URL('.' + spec, from.slice(0, srcIndex + 1)).href]
+		}
+		if (spec.startsWith('/')) {
+			return roots.map((root) =>
+				new URL('.' + spec, root.endsWith('/') ? root : root + '/').href
+			)
+		}
+		const rel = spec.startsWith('./') || spec.startsWith('../') ? spec : './' + spec
+		return [new URL(rel, from).href]
+	} catch {
+		return []
+	}
 }
 
 interface CallArg {

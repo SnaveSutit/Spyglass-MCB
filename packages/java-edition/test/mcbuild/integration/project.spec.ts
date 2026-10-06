@@ -672,4 +672,38 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			}
 		})
 	})
+
+	describe('scripts', () => {
+		it('flags REPEAT calls whose literal arguments fit no overload', async () => {
+			const { project, errors, uri } = await openAt(
+				'function t {\n\tREPEAT(1, 2, 3, 4) as i {\n\t\tsay <%i%>\n\t}\n'
+					+ "\tREPEAT('a') as i {\n\t}\n\tREPEAT(-1, 1) as i {\n\t}\n"
+					+ '\tREPEAT([1, 2]) as i {\n\t}\n\tREPEAT(config.n) as i {\n\t}\n}\n|',
+			)
+			try {
+				assert.deepEqual(messagesFor(errors, uri), [
+					'Invalid arguments for REPEAT (number, number, number, number)',
+					'Invalid arguments for REPEAT (string)',
+				])
+			} finally {
+				await project.close()
+			}
+		})
+
+		it('completes globals, template params and loop variables', async () => {
+			const labels = await completeInProject({
+				'src/t.mcbt':
+					'template t {\n\twith count:int {\n\t\tREPEAT(1, 2) as i {\n\t\t\tsay <%c|%>\n\t\t}\n\t}\n}\n',
+			}, 'src/t.mcbt')
+			for (const name of ['count', 'i', 'REPEAT', 'config', 'isMacro']) {
+				assert.ok(labels.includes(name), `${name} in ${JSON.stringify(labels)}`)
+			}
+			assert.ok(!labels.includes('emit'), 'emit is only in <%% %%>')
+
+			const fields = await completeInProject({
+				'src/t.mcb': 'function t {\n\tsay <%config.|%>\n}\n',
+			}, 'src/t.mcb')
+			assert.ok(fields.includes('internalScoreboardName'), JSON.stringify(fields))
+		})
+	})
 })

@@ -1,6 +1,7 @@
 import * as core from '@spyglassmc/core'
 import { localeQuote, localize } from '@spyglassmc/locales'
 import { CommandNode } from '@spyglassmc/mcfunction'
+import type * as acorn from 'acorn'
 import * as mcfChecker from '../../mcfunction/checker/index.js'
 import type { TemplateParamData } from '../binder/index.js'
 import { describeParams, getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
@@ -10,9 +11,11 @@ import type {
 	CommandStatementNode,
 	FunctionCallNode,
 	FunctionDefinitionNode,
+	JsNode,
 	ReferenceNode,
 } from '../node/index.js'
 import { EntryNode, IdentifierNode } from '../node/index.js'
+import { jsAst, walkJs } from '../parser/js.js'
 import { addTemplate } from '../quickFix.js'
 
 /** Checks a command line as a template call if its first word is a template, else as a command. */
@@ -350,9 +353,60 @@ function closingQuote(text: string, start: number): number {
 	return text.length - 1
 }
 
+/** Flags `REPEAT(…)` calls whose literal arguments match none of its overloads. */
+const js: core.SyncChecker<JsNode> = (node, ctx) => {
+	const ast = jsAst(node)
+	if (!ast) {
+		return
+	}
+	for (const n of walkJs(ast)) {
+		const call = n as acorn.CallExpression
+		if (n.type !== 'CallExpression' || call.callee.type !== 'Identifier') {
+			continue
+		}
+		const types = call.arguments.map(literalType)
+		if (call.callee.name !== 'REPEAT' || types.includes(undefined) || repeatAccepts(types)) {
+			continue
+		}
+		ctx.err.report(
+			localize('mcbuild.checker.repeat.args', types.join(', ')),
+			core.Range.create(node.range.start + call.start, node.range.start + call.end),
+			core.ErrorSeverity.Warning,
+		)
+	}
+}
+
+/** mc-build's `REPEAT` overloads: 1–3 numbers, or one array, object or function. */
+function repeatAccepts(types: readonly (string | undefined)[]): boolean {
+	return (types.length >= 1 && types.length <= 3 && types.every((t) => t === 'number'))
+		|| (types.length === 1 && types[0] === 'object')
+		|| (types.length === 1 && types[0] === 'function')
+}
+
+/** The `typeof` of a literal argument; `undefined` when it's only known at build time. */
+function literalType(arg: acorn.Expression | acorn.SpreadElement): string | undefined {
+	switch (arg.type) {
+		case 'Literal':
+			return typeof arg.value
+		case 'UnaryExpression':
+			return arg.operator === '-' || arg.operator === '+' ? literalType(arg.argument) : undefined
+		case 'TemplateLiteral':
+			return arg.expressions.length === 0 ? 'string' : undefined
+		case 'ArrayExpression':
+		case 'ObjectExpression':
+			return 'object'
+		case 'ArrowFunctionExpression':
+		case 'FunctionExpression':
+			return 'function'
+		default:
+			return undefined
+	}
+}
+
 export function register(meta: core.MetaRegistry): void {
 	meta.registerChecker<CommandStatementNode>('mcbuild:command', command)
 	meta.registerChecker<FunctionDefinitionNode>('mcbuild:function_definition', functionDefinition)
 	meta.registerChecker<FunctionCallNode>('mcbuild:function_call', functionCall)
 	meta.registerChecker<ReferenceNode>('mcbuild:reference', reference)
+	meta.registerChecker<JsNode>('mcbuild:js', js)
 }

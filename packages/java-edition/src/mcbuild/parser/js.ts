@@ -68,6 +68,50 @@ export function parseJs(
 	return node
 }
 
+/**
+ * The acorn AST of a script that parsed cleanly, with node offsets relative to `node.source`;
+ * `undefined` if it didn't.
+ */
+export function jsAst(node: Pick<JsNode, 'context' | 'loose' | 'source'>): acorn.Node | undefined {
+	if (node.loose || node.source.trim().length === 0) {
+		return undefined
+	}
+	try {
+		if (node.context === 'multiline') {
+			return acorn.parse(node.source, ACORN_OPTIONS)
+		}
+		// Same parens as `parseJs`, offset back by their "(\n".
+		return shiftOffsets(acorn.parse(`(\n${node.source}\n)`, ACORN_OPTIONS), -2)
+	} catch {
+		return undefined
+	}
+}
+
+function shiftOffsets<T extends acorn.Node>(root: T, delta: number): T {
+	for (const n of walkJs(root)) {
+		n.start += delta
+		n.end += delta
+	}
+	return root
+}
+
+/** Every node in an acorn AST, parents first. */
+export function* walkJs(node: acorn.Node): Generator<acorn.Node> {
+	yield node
+	for (const value of Object.values(node)) {
+		for (const child of Array.isArray(value) ? value : [value]) {
+			if (isJsNode(child)) {
+				yield* walkJs(child)
+			}
+		}
+	}
+}
+
+function isJsNode(value: unknown): value is acorn.Node {
+	const node = value as Partial<acorn.Node> | undefined
+	return typeof node?.type === 'string' && typeof node.start === 'number'
+}
+
 function cleanAcornMessage(message: string): string {
 	// Drop acorn's "(line:col)" suffix.
 	return message.replace(/\s*\(\d+:\d+\)\s*$/, '')

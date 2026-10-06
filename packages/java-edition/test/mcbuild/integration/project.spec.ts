@@ -404,4 +404,21 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			await project.close()
 		}
 	})
+
+	it('hovers and goes to definition from a template call', async () => {
+		const { project, service, doc, node, offset } = await openAt(
+			'import ./t.mcbt\nfunction t {\n\tgr|eet x\n}\n',
+			{ '/root/src/t.mcbt': 'template greet {\n\twith n:word {\n\t\tsay <%n%>\n\t}\n}\n' },
+		)
+		try {
+			assert.match(
+				service.getHover(node, doc, offset)?.markdown ?? '',
+				/mcbuild\/template\) greet/,
+			)
+			const defs = await service.getSymbolLocations(node, doc, offset, ['definition'])
+			assert.deepEqual(defs?.locations?.map((l) => l.uri), [`${ProjectRoot}src/t.mcbt`])
+		} finally {
+			await project.close()
+		}
+	})
 })

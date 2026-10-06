@@ -259,6 +259,9 @@ export function completionItem(
 		filterText: completion.filterText,
 		sortText: completion.sortText,
 		textEdit,
+		additionalTextEdits: completion.additionalEdits?.map((e) =>
+			ls.TextEdit.replace(range(e.range, doc), e.text)
+		),
 		insertTextFormat: InsertTextFormat.Snippet,
 		insertTextMode: ls.InsertTextMode.adjustIndentation,
 		...(completion.deprecated ? { tags: [ls.CompletionItemTag.Deprecated] } : {}),

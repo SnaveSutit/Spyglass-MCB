@@ -53,6 +53,8 @@ export interface CompletionItem {
 	insertText?: string
 	sortText?: string
 	filterText?: string
+	/** Edits elsewhere in the document applied with this item, e.g. adding an import. */
+	additionalEdits?: { range: Range; text: string }[]
 }
 export namespace CompletionItem {
 	/* istanbul ignore next */

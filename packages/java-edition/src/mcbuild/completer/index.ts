@@ -2,7 +2,8 @@ import * as core from '@spyglassmc/core'
 import { CompletionItem, CompletionKind } from '@spyglassmc/core'
 import { CommandNode } from '@spyglassmc/mcfunction'
 import { fileBase, FUNCTION_CATEGORY, TEMPLATE_CATEGORY } from '../binder/index.js'
-import { DirectoryDefinitionNode } from '../node/index.js'
+import type { CompileTimeLoopNode } from '../node/index.js'
+import { DirectoryDefinitionNode, TemplateOverloadNode } from '../node/index.js'
 
 export interface McbCompleterDeps {
 	/** `mcf.completer.command`; mcfunction has no per-node command completer to dispatch to. */
@@ -295,6 +296,83 @@ function commandItems(
 	return deps.command(node, ctx)
 }
 
+/** Names mc-build puts in scope for every `<% %>` / `<%% %%>` script. */
+const ScriptGlobals: readonly [name: string, detail: string][] = [
+	['REPEAT', 'compile-time range or iterable'],
+	['config', 'mcb.config.js export'],
+	['global', 'data shared across files'],
+	['store', 'scratch object'],
+	['isMacro', 'whether the line is a macro'],
+	['embed', 'embed a block or template'],
+	['context', 'compiler context'],
+]
+/** Extra names in `<%% %%>` blocks. */
+const MultilineScriptGlobals: readonly [name: string, detail: string][] = [
+	['emit', 'emit an mc-build line'],
+	['require', 'Node.js require'],
+]
+/** Fields mc-build reads from `mcb.config.js`. */
+const ConfigFields = [
+	'libDir',
+	'generatedDirName',
+	'internalScoreboardName',
+	'eqVarScoreboardName',
+	'eqConstScoreboardName',
+	'header',
+	'dontEmitComments',
+	'formatVersion',
+	'features',
+]
+
+/** `'multiline'` / `'inline'` when `offset` is inside `<%% %%>` / `<% %>`. */
+function scriptAt(text: string, offset: number): 'multiline' | 'inline' | undefined {
+	const open = text.lastIndexOf('<%', offset - 1)
+	if (open < 0 || text.lastIndexOf('%>', offset - 1) > open) {
+		return undefined
+	}
+	const multiline = text.lastIndexOf('<%%', offset - 1)
+	return multiline >= 0 && multiline >= open - 1 ? 'multiline' : 'inline'
+}
+
+/** Script globals, enclosing template params and `REPEAT … as` vars, or `config.` fields. */
+function scriptItems(
+	text: string,
+	offset: number,
+	script: 'multiline' | 'inline',
+	path: readonly core.AstNode[],
+): CompletionItem[] {
+	const word = /[\w$]*$/.exec(text.slice(0, offset))![0]
+	const range = core.Range.create(offset - word.length, offset)
+	if (text.slice(0, offset - word.length).endsWith('config.')) {
+		return ConfigFields.map((f) =>
+			CompletionItem.create(f, range, { kind: CompletionKind.Property })
+		)
+	}
+	const names = new Map<string, [detail: string, kind: CompletionKind]>()
+	for (const node of path) {
+		if (TemplateOverloadNode.is(node)) {
+			for (const p of node.params.filter((p) => p.kind !== 'literal')) {
+				names.set(p.name.value, [`template param: ${p.kind}`, CompletionKind.Variable])
+			}
+		} else if (node.type === 'mcbuild:compiletime_loop') {
+			for (const v of (node as CompileTimeLoopNode).vars) {
+				names.set(v.value, ['REPEAT variable', CompletionKind.Variable])
+			}
+		}
+	}
+	const globals = script === 'multiline'
+		? [...ScriptGlobals, ...MultilineScriptGlobals]
+		: ScriptGlobals
+	for (const [name, detail] of globals) {
+		if (!names.has(name)) {
+			names.set(name, [detail, CompletionKind.Constant])
+		}
+	}
+	return [...names].map(([name, [detail, kind]]) =>
+		CompletionItem.create(name, range, { kind, detail })
+	)
+}
+
 export function entry(deps: McbCompleterDeps): core.Completer<core.AstNode> {
 	return (node, ctx) => complete(node as core.AstNode, ctx, deps)
 }
@@ -314,6 +392,10 @@ const complete = (
 	const wordRange = core.Range.create(ctx.offset - word.length, ctx.offset)
 
 	const path = pathTo(node, ctx.offset)
+	const script = scriptAt(text, ctx.offset)
+	if (script) {
+		return scriptItems(text, ctx.offset, script, path)
+	}
 	const dirStack = path
 		.filter(DirectoryDefinitionNode.is)
 		.map((n) => n.id.value)

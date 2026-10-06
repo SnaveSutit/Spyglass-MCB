@@ -240,6 +240,29 @@ export namespace SignatureHelpProviderContext {
 	}
 }
 
+export interface RenameProviderContext extends ProcessorWithOffsetContext {
+	/** The open document at `uri`, else its contents on disk. */
+	getDocument(this: void, uri: string): Promise<TextDocument | undefined>
+	/** Whether `uri` is generated output, see `MetaRegistry.registerGeneratedFolder`. */
+	isGenerated(this: void, uri: string): boolean
+}
+export interface RenameProviderContextOptions extends ProcessorWithOffsetContextOptions {
+	getDocument: RenameProviderContext['getDocument']
+	isGenerated: RenameProviderContext['isGenerated']
+}
+export namespace RenameProviderContext {
+	export function create(
+		project: ProjectData,
+		opts: RenameProviderContextOptions,
+	): RenameProviderContext {
+		return {
+			...ProcessorWithOffsetContext.create(project, opts),
+			getDocument: opts.getDocument,
+			isGenerated: opts.isGenerated,
+		}
+	}
+}
+
 export interface UriBinderContext extends ContextBase {
 	config: Config
 	symbols: SymbolUtil

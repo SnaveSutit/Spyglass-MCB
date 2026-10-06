@@ -234,6 +234,16 @@ function appendChanges(
 	return target ? [edit] : [{ kind: 'create', uri, options: { ignoreIfExists: true } }, edit]
 }
 
+export function workspaceEdit(edits: readonly core.DocumentRenameEdits[]): ls.WorkspaceEdit {
+	const changes: Record<string, ls.TextEdit[]> = {}
+	for (const { doc, edits: docEdits } of edits) {
+		;(changes[doc.uri] ??= []).push(
+			...docEdits.map((e) => ls.TextEdit.replace(range(e.range, doc), e.text)),
+		)
+	}
+	return { changes }
+}
+
 export function completionItem(
 	completion: core.CompletionItem,
 	doc: TextDocument,

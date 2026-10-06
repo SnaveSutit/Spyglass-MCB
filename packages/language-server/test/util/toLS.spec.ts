@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import type * as ls from 'vscode-languageserver/node.js'
-import { codeAction, completionItem, semanticTokens } from '../../lib/util/toLS.js'
+import { codeAction, completionItem, semanticTokens, workspaceEdit } from '../../lib/util/toLS.js'
 
 /**
  * The result of decoding a semantic token from an integer list.
@@ -110,5 +110,30 @@ describe('completionItem()', () => {
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
 			newText: 'import ./t.mcbt\n',
 		}])
+	})
+})
+
+describe('workspaceEdit()', () => {
+	it('groups rename edits by document', () => {
+		const a = TextDocument.create('file:///a.mcb', 'mc-build', 0, 'function foo {\n}\n')
+		const b = TextDocument.create('file:///b.mcb', 'mc-build', 0, 'x\nfunction a:foo\n')
+		assert.deepEqual(
+			workspaceEdit([
+				{ doc: a, edits: [{ range: { start: 9, end: 12 }, text: 'bar' }] },
+				{ doc: b, edits: [{ range: { start: 13, end: 16 }, text: 'bar' }] },
+			]),
+			{
+				changes: {
+					'file:///a.mcb': [{
+						range: { start: { line: 0, character: 9 }, end: { line: 0, character: 12 } },
+						newText: 'bar',
+					}],
+					'file:///b.mcb': [{
+						range: { start: { line: 1, character: 11 }, end: { line: 1, character: 14 } },
+						newText: 'bar',
+					}],
+				},
+			},
+		)
 	})
 })

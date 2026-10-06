@@ -168,6 +168,7 @@ connection.onInitialize(async (params) => {
 			documentSymbolProvider: { label: 'Spyglass' },
 			hoverProvider: {},
 			inlayHintProvider: {},
+			renameProvider: { prepareProvider: true },
 			semanticTokensProvider,
 			signatureHelpProvider: { triggerCharacters: [' '] },
 			textDocumentSync: { change: ls.TextDocumentSyncKind.Incremental, openClose: true },
@@ -619,6 +620,38 @@ connection.languages.semanticTokens.onRange(async ({ textDocument: { uri }, rang
 		doc,
 		capabilities.textDocument?.semanticTokens?.multilineTokenSupport,
 	)
+})
+
+/** The rename target at `position`; a refusal becomes an error the client shows. */
+async function renameTarget(uri: string, position: ls.Position) {
+	const docAndNode = await service.project.ensureClientManagedChecked(uri)
+	if (!docAndNode) {
+		return undefined
+	}
+	const { doc, node } = docAndNode
+	const target = await service.getRenameTarget(node, doc, toCore.offset(position, doc))
+	if (typeof target === 'string') {
+		throw new ls.ResponseError(ls.LSPErrorCodes.RequestFailed, target)
+	}
+	return target && { doc, target }
+}
+
+connection.onPrepareRename(async ({ textDocument: { uri }, position }) => {
+	const found = await renameTarget(uri, position)
+	return found
+		&& { range: toLS.range(found.target.range, found.doc), placeholder: found.target.placeholder }
+})
+
+connection.onRenameRequest(async ({ textDocument: { uri }, position, newName }) => {
+	const found = await renameTarget(uri, position)
+	if (!found) {
+		return undefined
+	}
+	const edits = await found.target.rename(newName)
+	if (typeof edits === 'string') {
+		throw new ls.ResponseError(ls.LSPErrorCodes.RequestFailed, edits)
+	}
+	return toLS.workspaceEdit(edits)
 })
 
 connection.onSignatureHelp(async ({ textDocument: { uri }, position }) => {

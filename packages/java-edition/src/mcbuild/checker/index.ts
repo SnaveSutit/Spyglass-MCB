@@ -3,7 +3,7 @@ import { localeQuote, localize } from '@spyglassmc/locales'
 import { CommandNode } from '@spyglassmc/mcfunction'
 import * as mcfChecker from '../../mcfunction/checker/index.js'
 import type { TemplateParamData } from '../binder/index.js'
-import { getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
+import { describeParams, getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
 import type { DocComment } from '../doc.js'
 import { getDocComment } from '../doc.js'
 import type {
@@ -152,7 +152,7 @@ function checkTemplateArgs(
 		localize(
 			'mcbuild.checker.template.no-overload',
 			word.name,
-			data.overloads.map((o) => describeOverload(o.params)).join(' | '),
+			data.overloads.map((o) => describeParams(o.params) || '(no arguments)').join(' | '),
 		),
 		node.range,
 		core.ErrorSeverity.Warning,
@@ -203,15 +203,6 @@ function matchOverload(
 		ai++
 	}
 	return ai === args.length && (!hasBlock || blockUsed)
-}
-
-function describeOverload(params: readonly TemplateParamData[]): string {
-	if (params.length === 0) {
-		return '(no arguments)'
-	}
-	return params
-		.map((p) => (p.kind === 'literal' ? p.name : `${p.name}:${p.kind}`))
-		.join(' ')
 }
 
 /** Warns on `$(x)` in a documented function's body when `x` has no `@arg`. */

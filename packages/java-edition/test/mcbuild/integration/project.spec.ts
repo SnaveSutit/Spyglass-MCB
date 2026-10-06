@@ -85,6 +85,7 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	meta.registerUriBinder(uriBinder)
 	registerUriBuilders(meta)
 	meta.registerCompleter('mcfunction:command_child/literal', coreCompleter.literal)
+	meta.registerGeneratedFolder('mcb.config.js', 'data')
 	registerBinder(meta)
 	registerChecker(meta)
 	meta.registerSignatureHelpProvider(signatureHelpProvider(tree as never))
@@ -473,6 +474,36 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			assert.match(msgs[0], /main:missing/)
 		} finally {
 			await project.close()
+		}
+	})
+
+	it('indexes generated data/ files next to mcb.config.js without analyzing them', async () => {
+		const generatedUri = `${ProjectRoot}data/a/function/gen.mcfunction`
+		const files = {
+			'/root/pack.mcmeta': JSON.stringify({ pack: { pack_format: 48, description: '' } }),
+			'/root/src/a.mcb': 'function foo {\n\tfunction a:gen\n}\n',
+			'/root/data/a/function/gen.mcfunction': 'not a command\n',
+		}
+		const generated = await setup({ ...files, '/root/mcb.config.js': 'module.exports = {}\n' })
+		try {
+			await generated.project.analyzeProject()
+			assert.equal(generated.errors.get(generatedUri), undefined, 'never analyzed')
+			assert.deepEqual(messagesFor(generated.errors, `${ProjectRoot}src/a.mcb`), [])
+			assert.ok(generated.project.symbols.global['function']?.['a:gen']?.definition?.length)
+		} finally {
+			await generated.project.close()
+		}
+
+		const plain = await setup(files)
+		try {
+			await plain.project.analyzeProject()
+			assert.notDeepEqual(
+				messagesFor(plain.errors, generatedUri),
+				[],
+				'analyzed without the marker',
+			)
+		} finally {
+			await plain.project.close()
 		}
 	})
 

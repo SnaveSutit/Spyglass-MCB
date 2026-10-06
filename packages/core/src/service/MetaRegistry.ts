@@ -49,6 +49,11 @@ export interface LanguageOptions {
 	recheckOnCrossFileChange?: boolean
 }
 
+export interface GeneratedFolder {
+	marker: string
+	folder: string
+}
+
 export type UriPredicate = (uri: string, ctx: UriPredicateContext) => boolean
 
 interface LinterRegistration {
@@ -76,6 +81,7 @@ export class MetaRegistry {
 	 * A map from language IDs to language options.
 	 */
 	readonly #languages = new Map<string, LanguageOptions>()
+	readonly #generatedFolders: GeneratedFolder[] = []
 	readonly #binders = new Map<string, Binder<any>>()
 	readonly #checkers = new Map<string, Checker<any>>()
 	readonly #colorizers = new Map<string, Colorizer<any>>()
@@ -101,6 +107,20 @@ export class MetaRegistry {
 		completer.registerCompleters(this)
 		formatter.registerFormatters(this)
 		linter.registerLinters(this)
+	}
+
+	/**
+	 * Marks `<dir>/<folder>/` as generated output wherever a `<dir>/<marker>` file exists. Files in
+	 * it are indexed by URI only: never parsed, checked, or reported.
+	 * @param marker A file name, e.g. `"mcb.config.js"`.
+	 * @param folder A folder name next to the marker, e.g. `"data"`.
+	 */
+	public registerGeneratedFolder(marker: string, folder: string) {
+		this.#generatedFolders.push({ marker, folder })
+	}
+
+	public get generatedFolders(): readonly GeneratedFolder[] {
+		return this.#generatedFolders
 	}
 
 	/**

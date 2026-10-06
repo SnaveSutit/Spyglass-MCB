@@ -22,8 +22,7 @@ export const tree: mcf.RootTreeNode = {
 			children: {
 				name: {
 					type: 'argument',
-					parser: 'minecraft:resource_location',
-					properties: { pool: 'function', allowTag: true },
+					parser: 'minecraft:function',
 					executable: true,
 				},
 			},

@@ -15,6 +15,7 @@ import {
 	register as registerBinder,
 	resolveFunctionId,
 	TEMPLATE_CATEGORY,
+	VANILLA_FUNCTION_CATEGORY,
 } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
 import type { ReferenceNode } from '@spyglassmc/java-edition/lib/mcbuild/node/index.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
@@ -76,12 +77,12 @@ describe('mcbuild binder', () => {
 		assert.deepEqual(fns, ['features/spawn', 'root'])
 	})
 
-	it('registers fully-qualified function ids for files under src/', () => {
+	it('registers fully-qualified ids under src/ as vanilla functions', () => {
 		const symbols = bind(
 			'file:///pack/src/main.mcb',
 			'dir features {\n\tfunction spawn {\n\t\tsay hi\n\t}\n}\nfunction root {\n}',
 		)
-		const fns = Object.keys(symbols.global[FUNCTION_CATEGORY] ?? {}).sort()
+		const fns = Object.keys(symbols.global[VANILLA_FUNCTION_CATEGORY] ?? {}).sort()
 		assert.deepEqual(fns, ['main:features/spawn', 'main:root'])
 	})
 
@@ -90,7 +91,7 @@ describe('mcbuild binder', () => {
 			'file:///pack/src/foo/bar.mcb',
 			'function baz {\n\tsay hi\n}',
 		)
-		assert.ok(symbols.global[FUNCTION_CATEGORY]?.['foo:bar/baz'])
+		assert.ok(symbols.global[VANILLA_FUNCTION_CATEGORY]?.['foo:bar/baz'])
 	})
 
 	it('links a function call to its definition and back', () => {
@@ -98,7 +99,7 @@ describe('mcbuild binder', () => {
 			'file:///pack/src/main.mcb',
 			'function caller {\n\tfunction ./callee\n}\nfunction callee {\n\tsay hi\n}',
 		)
-		const symbol = symbols.global[FUNCTION_CATEGORY]?.['main:callee']
+		const symbol = symbols.global[VANILLA_FUNCTION_CATEGORY]?.['main:callee']
 		assert.ok(symbol, 'main:callee symbol should exist')
 		assert.equal(symbol.definition?.length, 1)
 		assert.equal(symbol.reference?.length, 1)
@@ -112,7 +113,7 @@ describe('mcbuild binder', () => {
 			'function tick {\n\tschedule function ./tick 1t\n}\n'
 				+ 'tag function minecraft:tick {\n\t./tick\n}',
 		)
-		assert.equal(symbols.global[FUNCTION_CATEGORY]?.['main:tick']?.reference?.length, 2)
+		assert.equal(symbols.global[VANILLA_FUNCTION_CATEGORY]?.['main:tick']?.reference?.length, 2)
 	})
 
 	it('defines a clock as a function and links the calls inside it', () => {
@@ -120,8 +121,30 @@ describe('mcbuild binder', () => {
 			'file:///pack/src/main.mcb',
 			'dir d {\n\tclock loop 1t {\n\t\tfunction ./callee\n\t}\n\tfunction callee {\n\t}\n}',
 		)
-		assert.equal(symbols.global[FUNCTION_CATEGORY]?.['main:d/loop']?.definition?.length, 1)
-		assert.equal(symbols.global[FUNCTION_CATEGORY]?.['main:d/callee']?.reference?.length, 1)
+		assert.equal(
+			symbols.global[VANILLA_FUNCTION_CATEGORY]?.['main:d/loop']?.definition?.length,
+			1,
+		)
+		assert.equal(
+			symbols.global[VANILLA_FUNCTION_CATEGORY]?.['main:d/callee']?.reference?.length,
+			1,
+		)
+	})
+
+	it('links `^N` to the enclosing named function, skipping generated frames', () => {
+		const symbols = bind(
+			'file:///pack/src/main.mcb',
+			'function loop {\n\tfunction ^0\n\texecute as @a run {\n\t\tfunction ^1\n\t\tfunction ^0\n\t}\n}',
+		)
+		assert.equal(symbols.global[VANILLA_FUNCTION_CATEGORY]?.['main:loop']?.reference?.length, 2)
+	})
+
+	it('leaves build-time targets unlinked', () => {
+		const symbols = bind(
+			'file:///pack/src/main.mcb',
+			'function t {\n\tfunction ./a_<%i%>\n}',
+		)
+		assert.deepEqual(Object.keys(symbols.global[VANILLA_FUNCTION_CATEGORY] ?? {}), ['main:t'])
 	})
 })
 

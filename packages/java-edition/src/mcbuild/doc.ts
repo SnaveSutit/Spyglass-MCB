@@ -121,6 +121,16 @@ function renderEntry({ name, type, desc }: DocEntry): string {
 	return `- \`${name}\`${type ? `: \`${type}\`` : ''}${desc ? ` — ${desc}` : ''}`
 }
 
+/** A template param's `{Type}`: from the `with` overload's doc, else the template's. */
+export function paramType(
+	name: string,
+	overloadDoc: DocComment | undefined,
+	templateDoc: DocComment | undefined,
+): string | undefined {
+	return overloadDoc?.params.find((p) => p.name === name)?.type
+		?? templateDoc?.params.find((p) => p.name === name)?.type
+}
+
 /** The doc stored on a function or template symbol by the binder. */
 export function getDocComment(symbol: core.Symbol | undefined): DocComment | undefined {
 	const doc = (symbol?.data as { doc?: DocComment } | undefined)?.doc

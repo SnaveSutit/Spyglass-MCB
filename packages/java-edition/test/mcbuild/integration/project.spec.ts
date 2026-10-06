@@ -706,4 +706,48 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			assert.ok(fields.includes('internalScoreboardName'), JSON.stringify(fields))
 		})
 	})
+
+	describe('typed template params', () => {
+		const templates = 'template move {\n'
+			+ '\t#> Gives an item\n\t# @param item {resource:item}\n\t# @param n {nope}\n'
+			+ '\twith give item:word n:int {\n\t\tsay <%item%>\n\t}\n'
+			+ '\t#> Teleports somewhere\n\t# @param target {entity} Who\n\t# @param pos {vec3}\n'
+			+ '\twith target:word pos:raw {\n\t\ttp <%target%> <%pos%>\n\t}\n}\n'
+
+		it('checks arguments against @param types', async () => {
+			const templatesUri = `${ProjectRoot}src/t.mcbt`
+			const { project, errors, uri } = await openAt(
+				'import ./t.mcbt\nfunction t {\n\tmove @s ~ ~ ~\n\tmove @s 1 2\n'
+					+ '\tmove <%who%> 1 2 3\n\tmove give minecraft:stone 1\n\tmove give Stone! 1\n}\n|',
+				{ '/root/src/t.mcbt': templates },
+			)
+			try {
+				const msgs = messagesFor(errors, uri)
+				assert.equal(msgs.length, 2, JSON.stringify(msgs))
+				assert.match(msgs[0], /^“pos” should be vec3: /)
+				assert.match(msgs[1], /^“item” should be resource:item: /)
+				assert.deepEqual(messagesFor(errors, templatesUri), [
+					'Unknown param type “nope”; expected a Minecraft argument type like entity, vec3 or resource:item',
+				])
+			} finally {
+				await project.close()
+			}
+		})
+
+		it("shows each overload's doc and param types in signature help", async () => {
+			const { project, service, doc, node, offset } = await openAt(
+				'import ./t.mcbt\nfunction t {\n\tmove |\n}\n',
+				{ '/root/src/t.mcbt': templates },
+			)
+			try {
+				const help = service.getSignatureHelp(node, doc, offset)
+				assert.deepEqual(
+					help?.signatures.map((s) => [s.documentation, s.parameters[0].documentation]),
+					[['Gives an item', undefined], ['Teleports somewhere', '`entity` — Who']],
+				)
+			} finally {
+				await project.close()
+			}
+		})
+	})
 })

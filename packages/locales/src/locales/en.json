@@ -118,6 +118,7 @@
   "mcbuild.rename.file-defined": "%0% is defined by the file %1%; rename that file instead",
   "mcbuild.rename.invalid-id": "%0% isn't a valid name; use a–z, 0–9, _, - and .",
   "mcbuild.rename.invalid-template": "%0% isn't a valid template name",
+  "mcbuild.rename.invalid-variable": "%0% isn't a valid name; use letters, digits and _",
   "mcbuild.rename.parent-ref": "`^N` refers to a function by position; rename it at its definition or a named call",
   "mcdoc.binder.dispatcher-statement.duplicated-key": "Duplicated dispatcher case %0%",
   "mcdoc.binder.dispatcher-statement.duplicated-key.related": "%0% has already been dispatched here",

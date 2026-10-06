@@ -393,17 +393,22 @@ describe('mcbuild integration (real Project pipeline)', () => {
 	})
 
 	/** Opens `main` (cursor marked by `|`) in a fresh project and returns the service, doc, node and offset. */
-	async function openAt(main: string, extra: Record<string, string> = {}) {
+	async function openAt(main: string, extra: Record<string, string> = {}, file = 'src/main.mcb') {
 		const offset = main.indexOf('|')
 		const text = main.replace('|', '')
-		const uri = `${ProjectRoot}src/main.mcb`
+		const uri = `${ProjectRoot}${file}`
 		const harness = await setup({
 			'/root/pack.mcmeta': JSON.stringify({ pack: { pack_format: 48, description: '' } }),
-			'/root/src/main.mcb': text,
+			[`/root/${file}`]: text,
 			...extra,
 		})
 		await harness.project.analyzeProject()
-		await harness.project.onDidOpen(uri, 'mc-build', 1, text)
+		await harness.project.onDidOpen(
+			uri,
+			file.endsWith('.mcbt') ? 'mc-build-template' : 'mc-build',
+			1,
+			text,
+		)
 		const docAndNode = await harness.project.ensureClientManagedChecked(uri)
 		assert.ok(docAndNode)
 		return { ...harness, ...docAndNode, offset, uri }
@@ -847,8 +852,9 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			main: string,
 			newName: string,
 			extra: Record<string, string> = {},
+			file?: string,
 		): Promise<Record<string, string> | string | undefined> {
-			const { project, service, doc, node, offset } = await openAt(main, extra)
+			const { project, service, doc, node, offset } = await openAt(main, extra, file)
 			try {
 				const target = await service.getRenameTarget(node, doc, offset)
 				if (typeof target !== 'object') {
@@ -909,6 +915,67 @@ describe('mcbuild integration (real Project pipeline)', () => {
 					'src/main.mcb':
 						'tag function events {\n}\nfunction t main:events {\n\tfunction #./events\n}\n',
 				},
+			)
+		})
+
+		it('renames a template param in its overload, leaving shadows and properties alone', async () => {
+			const template = (cursor: string, name: string) =>
+				`template greet {\n\t#> Hi\n\t# @param ${name} {entity} Target\n\twith ${name}:word {\n`
+				+ `\t\tsay <%${cursor}%>\n\t\tREPEAT(1, 2) as who {\n\t\t\tsay <%who%>\n\t\t}\n`
+				+ `\t\tIF (${name}) {\n\t\t\tsay <%${name}.name%> <%obj.who%>\n\t\t}\n\t}\n`
+				+ '\twith who:raw {\n\t\tsay <%who%>\n\t}\n}\n'
+			const result = await renameAt(template('w|ho', 'who'), 'target', {}, 'src/t.mcbt')
+			assert.deepEqual(result, { 'src/t.mcbt': template('target', 'target') })
+		})
+
+		it('renames a REPEAT variable from its declaration', async () => {
+			const loop = (decl: string, name: string) =>
+				`function t {\n\tREPEAT(1, 3) as ${decl} {\n\t\tsay <%${name} * 2%>\n\t}\n}\n`
+			assert.deepEqual(await renameAt(loop('|i', 'i'), 'n'), { 'src/main.mcb': loop('n', 'n') })
+		})
+
+		it('renames a macro argument across its body, doc and call sites', async () => {
+			const lib = (name: string) =>
+				`#> Show\n# @arg ${name} {string} Text\nfunction show {\n\t$say $(${name})\n\t$say $(${name}) $(other)\n}\n`
+			const main = (key: string, name: string) =>
+				`function t {\n\tfunction lib:show {${key}:"x", other:1}\n\tfunction lib:show {"${name}":1, other:2}\n}\n`
+			const result = await renameAt(main('ms|g', 'msg'), 'text', {
+				'/root/src/lib.mcb': lib('msg'),
+			})
+			assert.deepEqual(result, {
+				'src/lib.mcb': lib('text'),
+				'src/main.mcb': main('text', 'text'),
+			})
+		})
+
+		it('finds local names from every place they appear', async () => {
+			const placeholder = async (text: string, file = 'src/main.mcb', extra = {}) => {
+				const { project, service, doc, node, offset } = await openAt(text, extra, file)
+				try {
+					const target = await service.getRenameTarget(node, doc, offset)
+					return typeof target === 'object' ? target.placeholder : target
+				} finally {
+					await project.close()
+				}
+			}
+			const fn = (a: string, b: string) =>
+				`#> Show\n# @arg ${a} Text\nfunction show {\n\t$say $(${b})\n}\n`
+			assert.equal(await placeholder(fn('ms|g', 'msg')), 'msg')
+			assert.equal(await placeholder(fn('msg', 'ms|g')), 'msg')
+			const tmpl = (a: string, b: string) =>
+				`template t {\n\t#> T\n\t# @param ${a}\n\twith ${b}:word {\n\t\tsay <%who%>\n\t}\n}\n`
+			assert.equal(await placeholder(tmpl('w|ho', 'who'), 'src/t.mcbt'), 'who')
+			assert.equal(await placeholder(tmpl('who', 'w|ho'), 'src/t.mcbt'), 'who')
+			// A script global on a template call line isn't the template.
+			assert.equal(
+				await placeholder(
+					'import ./t.mcbt\nfunction f {\n\tt <%con|fig%>\n}\n',
+					'src/main.mcb',
+					{
+						'/root/src/t.mcbt': tmpl('who', 'who'),
+					},
+				),
+				undefined,
 			)
 		})
 

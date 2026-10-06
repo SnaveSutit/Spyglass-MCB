@@ -9,6 +9,7 @@ import {
 	VANILLA_FUNCTION_CATEGORY,
 } from './binder/index.js'
 import { DirectoryDefinitionNode, EntryNode } from './node/index.js'
+import { isInScript, localTarget } from './renameLocal.js'
 
 const ResourceCategories = new Set([
 	VANILLA_FUNCTION_CATEGORY,
@@ -16,10 +17,18 @@ const ResourceCategories = new Set([
 	FUNCTION_CATEGORY,
 ])
 
-/** Renames functions, clocks, function tags, templates and `dir`s in `.mcb` / `.mcbt` files. */
+/**
+ * Renames functions, clocks, function tags, templates, `dir`s and local names (see
+ * {@link localTarget}) in `.mcb` / `.mcbt` files.
+ */
 export const renameProvider: core.RenameProvider<core.FileNode<core.AstNode>> = (file, ctx) => {
 	if (!EntryNode.is(file.children[0] as core.AstNode | undefined)) {
 		return undefined
+	}
+	const local = localTarget(file, ctx)
+	if (local || isInScript(file, ctx.offset)) {
+		// Script names are never the line's template or function.
+		return local
 	}
 	const found = symbolAt(file, ctx)
 	if (!found) {

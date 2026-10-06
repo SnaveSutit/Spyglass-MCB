@@ -181,7 +181,15 @@ export function inlayHints(hints: core.InlayHint[], doc: TextDocument): ls.Inlay
 	return hints.map((h) => inlayHint(h, doc))
 }
 
-export function codeAction(codeAction: core.CodeAction, doc: TextDocument): ls.CodeAction {
+/**
+ * @param targets Current contents of files that `append` changes write to; `undefined` if the
+ * file doesn't exist yet.
+ */
+export function codeAction(
+	codeAction: core.CodeAction,
+	doc: TextDocument,
+	targets: ReadonlyMap<string, TextDocument | undefined> = new Map(),
+): ls.CodeAction {
 	return {
 		title: codeAction.title,
 		kind: ls.CodeActionKind.QuickFix,
@@ -189,23 +197,41 @@ export function codeAction(codeAction: core.CodeAction, doc: TextDocument): ls.C
 		diagnostics: codeAction.errors?.map(e => diagnostic(core.LanguageError.withPosRange(e, doc))),
 		edit: codeAction.changes
 			? {
-				documentChanges: codeAction.changes.map(change => {
-					switch (change.type) {
-						case 'edit':
-							return {
-								textDocument: { uri: doc.uri, version: doc.version },
-								edits: [{ range: range(change.range, doc), newText: change.text }],
-							} satisfies ls.TextDocumentEdit
-						case 'create':
-							return {
-								kind: 'create',
-								uri: change.uri,
-							} satisfies ls.CreateFile
-					}
-				}),
+				documentChanges: codeAction.changes.flatMap(
+					(change): (ls.TextDocumentEdit | ls.CreateFile)[] => {
+						switch (change.type) {
+							case 'edit':
+								return [{
+									textDocument: { uri: doc.uri, version: doc.version },
+									edits: [{ range: range(change.range, doc), newText: change.text }],
+								}]
+							case 'create':
+								return [{ kind: 'create', uri: change.uri }]
+							case 'append':
+								return appendChanges(change.uri, change.text, targets.get(change.uri))
+						}
+					},
+				),
 			}
 			: undefined,
 	}
+}
+
+function appendChanges(
+	uri: string,
+	text: string,
+	target: TextDocument | undefined,
+): (ls.TextDocumentEdit | ls.CreateFile)[] {
+	const content = target?.getText() ?? ''
+	const end = target ? target.positionAt(content.length) : ls.Position.create(0, 0)
+	const separator = content.length === 0 ? '' : content.endsWith('\n') ? '\n' : '\n\n'
+	const edit: ls.TextDocumentEdit = {
+		// LSP's marker for an unversioned edit; the file may not be open.
+		// eslint-disable-next-line no-restricted-syntax
+		textDocument: { uri, version: null },
+		edits: [{ range: ls.Range.create(end, end), newText: separator + text }],
+	}
+	return target ? [edit] : [{ kind: 'create', uri, options: { ignoreIfExists: true } }, edit]
 }
 
 export function completionItem(

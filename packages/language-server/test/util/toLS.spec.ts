@@ -1,9 +1,10 @@
 import type * as core from '@spyglassmc/core'
 import { showWhitespaceGlyph } from '@spyglassmc/core/test/utils.ts'
+import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import type * as ls from 'vscode-languageserver/node.js'
-import { semanticTokens } from '../../lib/util/toLS.js'
+import { codeAction, semanticTokens } from '../../lib/util/toLS.js'
 
 /**
  * The result of decoding a semantic token from an integer list.
@@ -53,4 +54,41 @@ describe('semanticTokens', () => {
 			})
 		}
 	}
+})
+
+describe('codeAction() append changes', () => {
+	const doc = TextDocument.create('file:///a.mcb', 'mc-build', 0, '')
+	const action: core.CodeAction = {
+		title: 'Add',
+		changes: [{ type: 'append', uri: 'file:///b.mcb', text: 'function x {\n}\n' }],
+	}
+
+	it('inserts at the end of an existing file, after a blank line', () => {
+		const target = TextDocument.create('file:///b.mcb', 'mc-build', 0, 'function a {\n}\n')
+		const changes = codeAction(action, doc, new Map([[target.uri, target]])).edit?.documentChanges
+		assert.deepEqual(changes, [{
+			// eslint-disable-next-line no-restricted-syntax
+			textDocument: { uri: 'file:///b.mcb', version: null },
+			edits: [{
+				range: { start: { line: 2, character: 0 }, end: { line: 2, character: 0 } },
+				newText: '\nfunction x {\n}\n',
+			}],
+		}])
+	})
+
+	it('creates a missing file before writing to it', () => {
+		const changes = codeAction(action, doc, new Map([['file:///b.mcb', undefined]])).edit
+			?.documentChanges
+		assert.deepEqual(changes, [
+			{ kind: 'create', uri: 'file:///b.mcb', options: { ignoreIfExists: true } },
+			{
+				// eslint-disable-next-line no-restricted-syntax
+				textDocument: { uri: 'file:///b.mcb', version: null },
+				edits: [{
+					range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+					newText: 'function x {\n}\n',
+				}],
+			},
+		])
+	})
 })

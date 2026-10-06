@@ -22,8 +22,14 @@ export const undeclaredSymbol: Linter<AstNode> = (node, ctx) => {
 	}
 	if (Config.Action.isReport(action)) {
 		const info: LanguageErrorInfo = {}
+		const custom = ctx.meta.getUndeclaredSymbolAction(node.symbol.category)?.(
+			node.symbol.identifier,
+			ctx,
+		)
 		const uriBuilder = ctx.meta.getUriBuilder(node.symbol.category)
-		if (uriBuilder) {
+		if (custom) {
+			info.codeAction = custom
+		} else if (uriBuilder) {
 			const uri = uriBuilder(node.symbol.identifier, ctx)
 			if (uri) {
 				info.codeAction = {

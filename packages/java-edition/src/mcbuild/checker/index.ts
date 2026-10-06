@@ -6,6 +6,7 @@ import type { TemplateParamData } from '../binder/index.js'
 import { getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
 import type { CommandStatementNode } from '../node/index.js'
 import { EntryNode } from '../node/index.js'
+import { addTemplate } from '../quickFix.js'
 
 /** Checks a command line as a template call if its first word is a template, else as a command. */
 const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
@@ -25,10 +26,12 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 	}
 
 	if (!isTemplate && word?.explicit) {
+		const templateFile = importUris(node, ctx).find((uri) => uri.endsWith('.mcbt'))
 		ctx.err.report(
 			localize('mcbuild.checker.template.unknown', localeQuote(word.name)),
 			word.range,
 			core.ErrorSeverity.Warning,
+			templateFile ? { codeAction: addTemplate(word.name, templateFile) } : undefined,
 		)
 		isTemplate = true
 	}

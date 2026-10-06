@@ -4,6 +4,7 @@ import * as binder from './binder/index.js'
 import * as checker from './checker/index.js'
 import * as completer from './completer/index.js'
 import { entry } from './parser/index.js'
+import { addFunction } from './quickFix.js'
 
 export * as binder from './binder/index.js'
 export * as checker from './checker/index.js'
@@ -74,6 +75,7 @@ export const initialize = (
 	for (const ext of ['.cjs', '.js', '.json']) {
 		meta.registerGeneratedFolder(`mcb.config${ext}`, 'data')
 	}
+	meta.registerUndeclaredSymbolAction('function', addFunction)
 	binder.register(meta)
 	checker.register(meta)
 }

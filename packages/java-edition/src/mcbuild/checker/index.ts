@@ -31,6 +31,14 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 		const query = ctx.symbols.query(ctx.doc, TEMPLATE_CATEGORY, word.name)
 		query.ifKnown((symbol) => {
 			isTemplate = true
+			if (!isTemplateVisible(symbol, node, ctx)) {
+				ctx.err.report(
+					localize('mcbuild.checker.template.not-imported', localeQuote(word.name)),
+					word.range,
+					core.ErrorSeverity.Error,
+				)
+				return
+			}
 			query.enter({ usage: { type: 'reference', range: word.range } })
 			node.symbol = symbol
 			reportDeprecated(getTemplateData(symbol)?.doc, word.name, word.range, ctx)
@@ -84,6 +92,24 @@ function firstWord(node: CommandStatementNode, ctx: core.CheckerContext): FirstW
 		range: core.Range.create(start, start + match[2].length),
 		explicit: match[1] !== undefined,
 	}
+}
+
+/**
+ * Whether `symbol` is in scope like mc-build has it: defined in this file or one it imports
+ * directly. Template bodies also see their caller's templates, so they're never flagged.
+ */
+function isTemplateVisible(
+	symbol: core.Symbol,
+	node: core.AstNode,
+	ctx: core.CheckerContext,
+): boolean {
+	for (let n: core.AstNode | undefined = node; n; n = n.parent) {
+		if (n.type === 'mcbuild:template_definition') {
+			return true
+		}
+	}
+	const visible = new Set([ctx.doc.uri, ...importUris(node, ctx)])
+	return symbol.definition?.some((l) => visible.has(l.uri)) ?? false
 }
 
 /** Resolves the enclosing file's `import` statements to absolute URIs. */

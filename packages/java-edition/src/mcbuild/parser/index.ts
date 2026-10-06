@@ -357,7 +357,7 @@ class ParseState {
 			const tagSrc = tokenSource(sliceToken(token, tag.start, tag.end))
 			const appendTo = core.resourceLocation({
 				category: 'tag/function',
-				usageType: 'reference',
+				usageType: 'definition',
 				allowTag: false,
 			})(tagSrc, this.ctx)
 			node.appendTo = appendTo

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import type * as ls from 'vscode-languageserver/node.js'
-import { codeAction, semanticTokens } from '../../lib/util/toLS.js'
+import { codeAction, completionItem, semanticTokens } from '../../lib/util/toLS.js'
 
 /**
  * The result of decoding a semantic token from an integer list.
@@ -90,5 +90,25 @@ describe('codeAction() append changes', () => {
 				}],
 			},
 		])
+	})
+})
+
+describe('completionItem()', () => {
+	it('maps additional edits', () => {
+		const doc = TextDocument.create('file:///a.mcb', 'mc-build', 0, 'function t {\n\tgr\n}\n')
+		const item = completionItem(
+			{
+				label: 'greet',
+				range: { start: 14, end: 16 },
+				additionalEdits: [{ range: { start: 0, end: 0 }, text: 'import ./t.mcbt\n' }],
+			},
+			doc,
+			16,
+			false,
+		)
+		assert.deepEqual(item.additionalTextEdits, [{
+			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+			newText: 'import ./t.mcbt\n',
+		}])
 	})
 })

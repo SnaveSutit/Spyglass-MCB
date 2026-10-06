@@ -11,10 +11,12 @@ import {
 
 export const TEMPLATE_CATEGORY = 'mcbuild/template'
 /**
- * `function` / `clock` definitions, keyed by `namespace:path` under a `src/`
- * root (else the `dir` path). Calls are recorded as references to the same key.
+ * `function` / `clock` definitions in files outside a `src/` root, keyed by their `dir` path.
+ * Under `src/` they resolve to real ids, so they use the vanilla {@link VANILLA_FUNCTION_CATEGORY}
+ * and link with `.mcfunction` files.
  */
 export const FUNCTION_CATEGORY = 'mcbuild/function'
+export const VANILLA_FUNCTION_CATEGORY = 'function'
 
 export interface TemplateParamData {
 	/** Param name, or the text of a `literal` param. */
@@ -143,31 +145,44 @@ function bindFunction(
 	const key = base
 		? `${base.namespace}:${[...base.path, ...dirStack, node.id.value].join('/')}`
 		: [...dirStack, node.id.value].join('/')
-	ctx.symbols.query(ctx.doc, FUNCTION_CATEGORY, key).enter({
+	ctx.symbols.query(ctx.doc, base ? VANILLA_FUNCTION_CATEGORY : FUNCTION_CATEGORY, key).enter({
 		usage: { type: 'definition', node: node.id, fullRange: node.range },
 	})
 	if (base && node.body) {
-		bindCallReferences(node.body, ctx, dirStack, base)
+		bindCallReferences(node.body, ctx, dirStack, base, [key])
 	}
 }
 
-/** Records each call in `root` as a reference to its target. */
+/** Statements mc-build compiles to a generated function, which `^N` counts as a frame. */
+const GeneratedFrameTypes = new Set([
+	'mcbuild:execute_block',
+	'mcbuild:schedule_block',
+	'mcbuild:load_block',
+	'mcbuild:tick_block',
+])
+
+/**
+ * Records each call in `root` as a reference to its target. `frames` mirrors mc-build's
+ * function stack for `^N`: named function ids, or `undefined` for generated ones.
+ */
 function bindCallReferences(
 	root: core.AstNode,
 	ctx: core.BinderContext,
 	dirStack: readonly string[],
 	base: FileBase,
+	frames: readonly (string | undefined)[],
 ) {
-	const visit = (n: core.AstNode) => {
+	const visit = (n: core.AstNode, frames: readonly (string | undefined)[]) => {
 		const target = callTarget(n)
 		if (target) {
-			enterReference(target, ctx, dirStack, base)
+			enterReference(target, ctx, dirStack, base, frames)
 		}
+		const inner = GeneratedFrameTypes.has(n.type) ? [...frames, undefined] : frames
 		for (const c of n.children ?? []) {
-			visit(c)
+			visit(c, inner)
 		}
 	}
-	visit(root)
+	visit(root, frames)
 }
 
 function callTarget(node: core.AstNode): ReferenceNode | undefined {
@@ -187,17 +202,20 @@ function enterReference(
 	ctx: core.BinderContext,
 	dirStack: readonly string[],
 	base: FileBase,
+	frames: readonly (string | undefined)[],
 ) {
-	if (ref.isTag) {
-		// Function tags aren't indexed yet.
+	if (ref.isTag || /<%|\$\(/.test(ref.path)) {
+		// Function tags aren't indexed yet; `<% %>` / `$(…)` targets are only known at build time.
 		return
 	}
-	const id = resolveFunctionId(ref, base, dirStack)
+	const id = ref.scheme === 'parent'
+		? frames[frames.length - 1 - (ref.depth ?? 0)]
+		: resolveFunctionId(ref, base, dirStack)
 	if (!id) {
 		return
 	}
 	ref.resolved = id
-	ctx.symbols.query(ctx.doc, FUNCTION_CATEGORY, id).enter({
+	ctx.symbols.query(ctx.doc, VANILLA_FUNCTION_CATEGORY, id).enter({
 		usage: { type: 'reference', node: ref },
 	})
 }
@@ -219,7 +237,7 @@ function bindFunctionTag(
 	for (const tagEntry of node.entries) {
 		const value = (tagEntry as { value?: core.AstNode }).value
 		if (ReferenceNode.is(value)) {
-			enterReference(value, ctx, dirStack, base)
+			enterReference(value, ctx, dirStack, base, [])
 		}
 	}
 }

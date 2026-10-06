@@ -18,6 +18,7 @@ import {
 	VanillaConfig,
 } from '@spyglassmc/core'
 import { getNodeJsExternals } from '@spyglassmc/core/lib/nodejs.js'
+import { registerUriBuilders, uriBinder } from '@spyglassmc/java-edition/lib/binder/index.js'
 import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
 import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
 import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
@@ -77,6 +78,12 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 		completer,
 		recheckOnCrossFileChange: true,
 	})
+	meta.registerLanguage('mcfunction', {
+		extensions: ['.mcfunction'],
+		parser: mcf.entry(tree, argument),
+	})
+	meta.registerUriBinder(uriBinder)
+	registerUriBuilders(meta)
 	meta.registerCompleter('mcfunction:command_child/literal', coreCompleter.literal)
 	registerBinder(meta)
 	registerChecker(meta)
@@ -237,7 +244,7 @@ describe('mcbuild integration (real Project pipeline)', () => {
 		})
 		try {
 			await project.analyzeProject()
-			const fns = project.symbols.global['mcbuild/function'] ?? {}
+			const fns = project.symbols.global['function'] ?? {}
 
 			const foo = fns['a:foo']
 			assert.ok(foo, 'a:foo symbol should exist')
@@ -430,6 +437,40 @@ describe('mcbuild integration (real Project pipeline)', () => {
 		)
 		try {
 			assert.ok(service.getSignatureHelp(node, doc, offset)?.signatures.length)
+		} finally {
+			await project.close()
+		}
+	})
+
+	it('links calls between .mcfunction and .mcb files both ways', async () => {
+		const { project } = await setup({
+			'/root/pack.mcmeta': JSON.stringify({ pack: { pack_format: 48, description: '' } }),
+			'/root/src/a.mcb': 'function foo {\n\tfunction a:vanilla\n}\n',
+			'/root/data/a/function/vanilla.mcfunction': 'function a:foo\n',
+		})
+		try {
+			await project.analyzeProject()
+			const fns = project.symbols.global['function'] ?? {}
+			assert.deepEqual(fns['a:foo']?.reference?.map((l) => l.uri), [
+				`${ProjectRoot}data/a/function/vanilla.mcfunction`,
+			])
+			assert.deepEqual(fns['a:vanilla']?.reference?.map((l) => l.uri), [
+				`${ProjectRoot}src/a.mcb`,
+			])
+			assert.ok(fns['a:vanilla']?.definition?.length, 'the .mcfunction file defines a:vanilla')
+		} finally {
+			await project.close()
+		}
+	})
+
+	it('warns on calls to undeclared functions, but not build-time targets', async () => {
+		const { project, errors, uri } = await openAt(
+			'function t {\n\tfunction ./missing\n\tfunction ./t\n\tfunction ./x_<%i%>\n}\n|',
+		)
+		try {
+			const msgs = messagesFor(errors, uri)
+			assert.equal(msgs.length, 1, JSON.stringify(msgs))
+			assert.match(msgs[0], /main:missing/)
 		} finally {
 			await project.close()
 		}

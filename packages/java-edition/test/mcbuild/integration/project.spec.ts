@@ -582,4 +582,47 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			await project.close()
 		}
 	})
+
+	describe('#> doc blocks', () => {
+		const lib =
+			'#> Says hi\n# @arg name {string} Who to greet\nfunction greet {\n\t$say hi $(name) $(nope)\n}\n'
+			+ '#> Old\n# @deprecated Use ./greet\nfunction old {\n}\n'
+			+ '# Not a doc block\nfunction plain {\n}\n'
+
+		it('shows the doc on hover', async () => {
+			const { project, service, doc, node, offset } = await openAt(
+				'function t {\n\tfunction lib:gr|eet {name:"x"}\n}\n',
+				{ '/root/src/lib.mcb': lib },
+			)
+			try {
+				const hover = service.getHover(node, doc, offset)?.markdown ?? ''
+				assert.match(hover, /Says hi/)
+				assert.match(hover, /`name`: `string` — Who to greet/)
+			} finally {
+				await project.close()
+			}
+		})
+
+		it('checks macro arguments and deprecation', async () => {
+			const libUri = `${ProjectRoot}src/lib.mcb`
+			const { project, errors, uri } = await openAt(
+				'function t {\n\tfunction lib:greet {name:"x", extra:1}\n\tfunction lib:greet {}\n'
+					+ '\tfunction lib:greet\n\tfunction lib:old\n\tfunction lib:plain\n}\n|',
+				{ '/root/src/lib.mcb': lib },
+			)
+			try {
+				assert.deepEqual(messagesFor(errors, uri), [
+					'“lib:greet” has no macro argument “extra”',
+					'Missing macro argument “name” for “lib:greet”',
+					'“lib:greet” expects macro arguments: “name”',
+					'“lib:old” is deprecated: Use ./greet',
+				])
+				assert.deepEqual(messagesFor(errors, libUri), [
+					"Macro argument “nope” isn't declared with @arg",
+				])
+			} finally {
+				await project.close()
+			}
+		})
+	})
 })

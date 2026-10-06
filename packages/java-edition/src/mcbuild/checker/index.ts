@@ -4,8 +4,15 @@ import { CommandNode } from '@spyglassmc/mcfunction'
 import * as mcfChecker from '../../mcfunction/checker/index.js'
 import type { TemplateParamData } from '../binder/index.js'
 import { getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
-import type { CommandStatementNode } from '../node/index.js'
-import { EntryNode } from '../node/index.js'
+import type { DocComment } from '../doc.js'
+import { getDocComment } from '../doc.js'
+import type {
+	CommandStatementNode,
+	FunctionCallNode,
+	FunctionDefinitionNode,
+	ReferenceNode,
+} from '../node/index.js'
+import { EntryNode, IdentifierNode } from '../node/index.js'
 import { addTemplate } from '../quickFix.js'
 
 /** Checks a command line as a template call if its first word is a template, else as a command. */
@@ -21,6 +28,7 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 			isTemplate = true
 			query.enter({ usage: { type: 'reference', range: word.range } })
 			node.symbol = symbol
+			reportDeprecated(getTemplateData(symbol)?.doc, word.name, word.range, ctx)
 			checkTemplateArgs(node, symbol, word, ctx)
 		})
 	}
@@ -206,6 +214,154 @@ function describeOverload(params: readonly TemplateParamData[]): string {
 		.join(' ')
 }
 
+/** Warns on `$(x)` in a documented function's body when `x` has no `@arg`. */
+const functionDefinition: core.Checker<FunctionDefinitionNode> = async (node, ctx) => {
+	const doc = getDocComment(node.id.symbol)
+	if (doc && doc.args.length > 0 && node.body) {
+		const declared = new Set(doc.args.map((a) => a.name))
+		const text = ctx.doc.getText().slice(node.body.range.start, node.body.range.end)
+		for (const match of text.matchAll(/\$\((\w+)\)/g)) {
+			if (!declared.has(match[1])) {
+				const start = node.body.range.start + match.index + 2
+				ctx.err.report(
+					localize('mcbuild.checker.macro.undeclared', localeQuote(match[1])),
+					core.Range.create(start, start + match[1].length),
+					core.ErrorSeverity.Warning,
+				)
+			}
+		}
+	}
+	// This checker stops the dispatcher descending, so check children by hand.
+	if (node.body) {
+		await core.checker.fallback(node.body, ctx)
+	}
+}
+
+/** Checks literal `{…}` macro data against the target's `@arg`s. */
+const functionCall: core.Checker<FunctionCallNode> = async (node, ctx) => {
+	const doc = getDocComment(node.target.symbol)
+	if (doc && doc.args.length > 0 && node.target.resolved) {
+		const id = localeQuote(node.target.resolved)
+		const keys = IdentifierNode.is(node.data) ? compoundKeys(node.data.value) : undefined
+		if (!node.data) {
+			ctx.err.report(
+				localize(
+					'mcbuild.checker.macro.no-data',
+					id,
+					doc.args.map((a) => localeQuote(a.name)).join(', '),
+				),
+				node.target.range,
+				core.ErrorSeverity.Warning,
+			)
+		} else if (keys && IdentifierNode.is(node.data)) {
+			const start = node.data.range.start
+			for (const key of keys) {
+				if (!doc.args.some((a) => a.name === key.name)) {
+					ctx.err.report(
+						localize('mcbuild.checker.macro.unknown', localeQuote(key.name), id),
+						core.Range.create(start + key.offset, start + key.offset + key.length),
+						core.ErrorSeverity.Warning,
+					)
+				}
+			}
+			for (const arg of doc.args) {
+				if (!keys.some((k) => k.name === arg.name)) {
+					ctx.err.report(
+						localize('mcbuild.checker.macro.missing', localeQuote(arg.name), id),
+						node.data.range,
+						core.ErrorSeverity.Warning,
+					)
+				}
+			}
+		}
+	}
+	await core.checker.fallback(node.target, ctx)
+}
+
+/** Warns on references to `@deprecated` functions and function tags. */
+const reference: core.SyncChecker<ReferenceNode> = (node, ctx) => {
+	if (node.resolved) {
+		reportDeprecated(getDocComment(node.symbol), node.resolved, node.range, ctx)
+	}
+}
+
+function reportDeprecated(
+	doc: DocComment | undefined,
+	name: string,
+	range: core.Range,
+	ctx: core.CheckerContext,
+) {
+	if (doc?.deprecated === undefined) {
+		return
+	}
+	const message = localize('mcbuild.checker.deprecated', localeQuote(name))
+	ctx.err.report(
+		doc.deprecated ? `${message}: ${doc.deprecated}` : message,
+		range,
+		core.ErrorSeverity.Warning,
+		{ deprecated: true },
+	)
+}
+
+interface CompoundKey {
+	name: string
+	/** Offset of the key in the compound text. */
+	offset: number
+	length: number
+}
+
+/**
+ * Top-level keys of a literal SNBT compound, or `undefined` when it isn't one or has build-time
+ * parts (`<% %>`, `$(…)`) whose keys can't be known.
+ */
+export function compoundKeys(text: string): CompoundKey[] | undefined {
+	const trimmed = text.trimEnd()
+	if (!trimmed.startsWith('{') || !trimmed.endsWith('}') || /<%|\$\(/.test(trimmed)) {
+		return undefined
+	}
+	const keys: CompoundKey[] = []
+	let depth = 0
+	let expectKey = false
+	for (let i = 0; i < trimmed.length; i++) {
+		const c = trimmed[i]
+		if (c === '"' || c === "'") {
+			const end = closingQuote(trimmed, i)
+			if (depth === 1 && expectKey) {
+				keys.push({ name: trimmed.slice(i + 1, end), offset: i, length: end + 1 - i })
+				expectKey = false
+			}
+			i = end
+		} else if (c === '{' || c === '[') {
+			depth++
+			expectKey = c === '{' && depth === 1
+		} else if (c === '}' || c === ']') {
+			depth--
+		} else if (c === ',' && depth === 1) {
+			expectKey = true
+		} else if (depth === 1 && expectKey && /[\w.+-]/.test(c)) {
+			const match = /^[\w.+-]+/.exec(trimmed.slice(i))!
+			keys.push({ name: match[0], offset: i, length: match[0].length })
+			expectKey = false
+			i += match[0].length - 1
+		}
+	}
+	return depth === 0 ? keys : undefined
+}
+
+function closingQuote(text: string, start: number): number {
+	for (let i = start + 1; i < text.length; i++) {
+		if (text[i] === '\\') {
+			i++
+		} else if (text[i] === text[start]) {
+			return i
+		}
+	}
+	return text.length - 1
+}
+
 export function register(meta: core.MetaRegistry): void {
 	meta.registerChecker<CommandStatementNode>('mcbuild:command', command)
+	meta.registerChecker<FunctionDefinitionNode>('mcbuild:function_definition', functionDefinition)
+	meta.registerChecker<FunctionCallNode>('mcbuild:function_call', functionCall)
+	meta.registerChecker<ReferenceNode>('mcbuild:reference', reference)
 }

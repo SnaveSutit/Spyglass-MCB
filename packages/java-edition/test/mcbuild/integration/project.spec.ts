@@ -24,6 +24,7 @@ import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuil
 import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import { addFunction } from '@spyglassmc/java-edition/lib/mcbuild/quickFix.js'
+import { renameProvider } from '@spyglassmc/java-edition/lib/mcbuild/rename.js'
 import { templateSignatureHelp } from '@spyglassmc/java-edition/lib/mcbuild/signatureHelp.js'
 import { getMockNodes } from '@spyglassmc/java-edition/lib/mcfunction/completer/index.js'
 import { argument } from '@spyglassmc/java-edition/lib/mcfunction/parser/index.js'
@@ -90,6 +91,7 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	meta.registerGeneratedFolder('mcb.config.js', 'data')
 	meta.registerUndeclaredSymbolAction('function', addFunction)
 	meta.registerSignatureHelpProvider(templateSignatureHelp)
+	meta.registerRenameProvider(renameProvider)
 	registerBinder(meta)
 	registerChecker(meta)
 	meta.registerSignatureHelpProvider(signatureHelpProvider(tree as never))
@@ -836,6 +838,99 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			} finally {
 				await project.close()
 			}
+		})
+	})
+
+	describe('rename', () => {
+		/** Renames at `|` in main.mcb and returns every file's new text, or the refusal. */
+		async function renameAt(
+			main: string,
+			newName: string,
+			extra: Record<string, string> = {},
+		): Promise<Record<string, string> | string | undefined> {
+			const { project, service, doc, node, offset } = await openAt(main, extra)
+			try {
+				const target = await service.getRenameTarget(node, doc, offset)
+				if (typeof target !== 'object') {
+					return target
+				}
+				const result = await target.rename(newName)
+				if (typeof result === 'string') {
+					return result
+				}
+				const texts: Record<string, string> = {}
+				for (const { doc: d, edits } of result) {
+					let text = d.getText()
+					for (const e of [...edits].sort((a, b) => b.range.start - a.range.start)) {
+						text = text.slice(0, e.range.start) + e.text + text.slice(e.range.end)
+					}
+					texts[d.uri.replace(ProjectRoot, '')] = text
+				}
+				return texts
+			} finally {
+				await project.close()
+			}
+		}
+
+		it('renames a function in every spelling, leaving `^N` alone', async () => {
+			const result = await renameAt('function t {\n\tfunction a:f|oo\n}\n', 'bar', {
+				'/root/src/a.mcb': 'function foo {\n\tfunction ^0\n\tfunction *foo\n}\n'
+					+ 'clock tick 1t {\n\tfunction ./foo\n}\n',
+				'/root/data/a/function/v.mcfunction': 'function a:foo\n',
+			})
+			assert.deepEqual(result, {
+				'src/main.mcb': 'function t {\n\tfunction a:bar\n}\n',
+				'src/a.mcb': 'function bar {\n\tfunction ^0\n\tfunction *bar\n}\n'
+					+ 'clock tick 1t {\n\tfunction ./bar\n}\n',
+				'data/a/function/v.mcfunction': 'function a:bar\n',
+			})
+		})
+
+		it('renames templates, function tags and tag appends', async () => {
+			assert.deepEqual(
+				await renameAt(
+					'import ./t.mcbt\nfunction t {\n\tgre|et\n\ttemplate greet\n}\n',
+					'wave',
+					{
+						'/root/src/t.mcbt': 'template greet {\n\twith {\n\t}\n}\n',
+					},
+				),
+				{
+					'src/main.mcb': 'import ./t.mcbt\nfunction t {\n\twave\n\ttemplate wave\n}\n',
+					'src/t.mcbt': 'template wave {\n\twith {\n\t}\n}\n',
+				},
+			)
+			assert.deepEqual(
+				await renameAt(
+					'tag function ho|oks {\n}\nfunction t main:hooks {\n\tfunction #./hooks\n}\n',
+					'events',
+				),
+				{
+					'src/main.mcb':
+						'tag function events {\n}\nfunction t main:events {\n\tfunction #./events\n}\n',
+				},
+			)
+		})
+
+		it("skips generated copies and refuses what it can't rename", async () => {
+			const generated = await renameAt('function fo|o {\n}\n', 'bar', {
+				'/root/mcb.config.js': '',
+				'/root/data/main/function/foo.mcfunction': '',
+			})
+			assert.deepEqual(generated, { 'src/main.mcb': 'function bar {\n}\n' })
+
+			const fileDefined = await renameAt('function t {\n\tfunction a:v|an\n}\n', 'x', {
+				'/root/data/a/function/van.mcfunction': '',
+			})
+			assert.match(String(fileDefined), /is defined by the file .*van\.mcfunction/)
+			assert.match(
+				String(await renameAt('function fo|o {\n}\n', 'Bad Name')),
+				/isn't a valid name/,
+			)
+			assert.match(
+				String(await renameAt('function t {\n\tfunction ^|0\n}\n', 'x')),
+				/by position/,
+			)
 		})
 	})
 })

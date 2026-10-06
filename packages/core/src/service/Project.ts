@@ -908,6 +908,7 @@ export class Project extends EventDispatcher<{
 						await this.bind(doc, node)
 						await this.check(doc, node)
 						this.emit('documentUpdated', { doc, node })
+						await this.recheckOpenDependents(doc)
 					}
 				}
 			} catch (e) {
@@ -982,6 +983,29 @@ export class Project extends EventDispatcher<{
 		if (this.#isReady) {
 			await this.bind(doc, node)
 			await this.check(doc, node)
+			await this.recheckOpenDependents(doc)
+		}
+	}
+
+	/**
+	 * Re-checks the other client-managed documents when `changed` belongs to a language with
+	 * `recheckOnCrossFileChange`, as their results may depend on its symbols.
+	 */
+	private async recheckOpenDependents(changed: TextDocument): Promise<void> {
+		const optedIn = (doc: TextDocument) =>
+			!!this.meta.getLanguageOptions(doc.languageId)?.recheckOnCrossFileChange
+		if (!optedIn(changed)) {
+			return
+		}
+		for (const [uri, { doc }] of this.#clientManagedDocAndNodes) {
+			if (uri === changed.uri || !optedIn(doc)) {
+				continue
+			}
+			const node = this.parse(doc)
+			this.#clientManagedDocAndNodes.set(uri, { doc, node })
+			await this.bind(doc, node)
+			await this.check(doc, node)
+			this.emit('documentUpdated', { doc, node })
 		}
 	}
 

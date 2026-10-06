@@ -80,6 +80,8 @@
   "long.between": "a long between %0% and %1%",
   "mcbuild.checker.template.no-overload": "No overload of template %0% matches these arguments. Expected: %1%",
   "mcbuild.checker.template.unknown": "Unknown template %0%",
+  "mcbuild.code-action.add-function": "Add function %0% to %1%",
+  "mcbuild.code-action.add-template": "Add template %0% to %1%",
   "mcbuild.parser.clock.expected-name-time": "Expected a name and a time for the clock",
   "mcbuild.parser.eq.expected-operator": "Expected a scoreboard operator (=, +=, -=, *=, /=, %=) but got %0%",
   "mcbuild.parser.eq.incomplete": "Incomplete eq expression",

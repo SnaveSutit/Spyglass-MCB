@@ -23,6 +23,7 @@ import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild
 import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
 import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
+import { addFunction } from '@spyglassmc/java-edition/lib/mcbuild/quickFix.js'
 import { getMockNodes } from '@spyglassmc/java-edition/lib/mcfunction/completer/index.js'
 import { argument } from '@spyglassmc/java-edition/lib/mcfunction/parser/index.js'
 import { signatureHelpProvider } from '@spyglassmc/java-edition/lib/mcfunction/signatureHelpProvider.js'
@@ -86,6 +87,7 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	registerUriBuilders(meta)
 	meta.registerCompleter('mcfunction:command_child/literal', coreCompleter.literal)
 	meta.registerGeneratedFolder('mcb.config.js', 'data')
+	meta.registerUndeclaredSymbolAction('function', addFunction)
 	registerBinder(meta)
 	registerChecker(meta)
 	meta.registerSignatureHelpProvider(signatureHelpProvider(tree as never))
@@ -544,6 +546,38 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			const msgs = messagesFor(errors, uri)
 			assert.equal(msgs.length, 1, JSON.stringify(msgs))
 			assert.match(msgs[0], /a:missing/)
+		} finally {
+			await project.close()
+		}
+	})
+
+	it('offers to add missing functions and templates where mc-build would look', async () => {
+		const { project, service, doc, node } = await openAt(
+			'import ./t.mcbt\nfunction t {\n\tfunction ./d/missing\n\tfunction a:other/x\n\ttemplate nope\n}\n|',
+			{ '/root/src/t.mcbt': '# templates\n' },
+		)
+		try {
+			const actions = ['./d/missing', 'a:other/x', 'nope'].flatMap((needle) => {
+				const offset = doc.getText().indexOf(needle) + 2
+				return service.getCodeActions(node, doc, { start: offset, end: offset })
+			})
+			assert.deepEqual(actions.map((a) => [a.title, a.changes]), [
+				['Add function “d/missing” to main.mcb', [
+					{
+						type: 'append',
+						uri: `${ProjectRoot}src/main.mcb`,
+						text: 'function d/missing {\n}\n',
+					},
+				]],
+				['Add function “x” to other.mcb', [
+					{ type: 'append', uri: `${ProjectRoot}src/a/other.mcb`, text: 'function x {\n}\n' },
+				]],
+				['Add template “nope” to t.mcbt', [{
+					type: 'append',
+					uri: `${ProjectRoot}src/t.mcbt`,
+					text: 'template nope {\n\twith {\n\t}\n}\n',
+				}]],
+			])
 		} finally {
 			await project.close()
 		}

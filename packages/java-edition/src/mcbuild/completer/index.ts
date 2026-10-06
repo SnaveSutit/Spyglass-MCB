@@ -264,13 +264,13 @@ function referenceItems(
  * The last command starting on the cursor's line before it. Containment alone
  * misses a cursor after a trailing space (`execute |`).
  */
-function embeddedCommandAt(
-	root: core.AstNode,
-	ctx: core.CompleterContext,
-): CommandNode | undefined {
+export function embeddedCommandAt(
+	root: core.DeepReadonly<core.AstNode>,
+	ctx: Pick<core.CompleterContext, 'doc' | 'offset'>,
+): core.DeepReadonly<CommandNode> | undefined {
 	const lineStart = ctx.doc.getText().lastIndexOf('\n', ctx.offset - 1) + 1
-	let best: CommandNode | undefined
-	const visit = (n: core.AstNode) => {
+	let best: core.DeepReadonly<CommandNode> | undefined
+	const visit = (n: core.DeepReadonly<core.AstNode>) => {
 		if (
 			CommandNode.is(n)
 			&& n.range.start >= lineStart && n.range.start <= ctx.offset

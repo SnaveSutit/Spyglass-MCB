@@ -1,6 +1,7 @@
 import * as core from '@spyglassmc/core'
 import * as mcf from '@spyglassmc/mcfunction'
 import type { RootTreeNode } from '../dependency/index.js'
+import { embeddedCommandAt } from '../mcbuild/completer/index.js'
 
 /**
  * Only command options that can be satisfied by the current command node will be listed in `signatures`.
@@ -10,12 +11,15 @@ export function signatureHelpProvider(
 	rootTreeNode: RootTreeNode,
 ): core.SignatureHelpProvider<core.FileNode<mcf.McfunctionNode>> {
 	return (fileNode, ctx) => {
-		if (fileNode.children[0]?.type !== 'mcfunction:entry') {
-			// Not mcfunction.
+		const entryType: string | undefined = fileNode.children[0]?.type
+		let node
+		if (entryType === 'mcfunction:entry') {
+			node = getSelectedCommandNode(fileNode, ctx.offset)
+		} else if (entryType === 'mcbuild:entry') {
+			node = embeddedCommandAt(fileNode, ctx)
+		} else {
 			return undefined
 		}
-
-		const node = getSelectedCommandNode(fileNode, ctx.offset)
 		if (!mcf.CommandNode.is(node)) {
 			// Not a command node.
 			return undefined

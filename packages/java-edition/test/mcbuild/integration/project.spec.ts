@@ -24,6 +24,7 @@ import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import { getMockNodes } from '@spyglassmc/java-edition/lib/mcfunction/completer/index.js'
 import { argument } from '@spyglassmc/java-edition/lib/mcfunction/parser/index.js'
+import { signatureHelpProvider } from '@spyglassmc/java-edition/lib/mcfunction/signatureHelpProvider.js'
 import * as mcf from '@spyglassmc/mcfunction'
 import { memfs } from 'memfs'
 import assert from 'node:assert/strict'
@@ -79,6 +80,7 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	meta.registerCompleter('mcfunction:command_child/literal', coreCompleter.literal)
 	registerBinder(meta)
 	registerChecker(meta)
+	meta.registerSignatureHelpProvider(signatureHelpProvider(tree as never))
 	return { loadedVersion: '1.21' }
 }
 
@@ -417,6 +419,17 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			)
 			const defs = await service.getSymbolLocations(node, doc, offset, ['definition'])
 			assert.deepEqual(defs?.locations?.map((l) => l.uri), [`${ProjectRoot}src/t.mcbt`])
+		} finally {
+			await project.close()
+		}
+	})
+
+	it('offers vanilla command signature help inside a function body', async () => {
+		const { project, service, doc, node, offset } = await openAt(
+			'function t {\n\tscoreboard |\n}\n',
+		)
+		try {
+			assert.ok(service.getSignatureHelp(node, doc, offset)?.signatures.length)
 		} finally {
 			await project.close()
 		}

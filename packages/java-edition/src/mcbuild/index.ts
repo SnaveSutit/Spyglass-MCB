@@ -70,6 +70,10 @@ export const initialize = (
 		recheckOnCrossFileChange: true,
 	})
 
+	// mc-build regenerates `data/` next to its config on every build.
+	for (const ext of ['.cjs', '.js', '.json']) {
+		meta.registerGeneratedFolder(`mcb.config${ext}`, 'data')
+	}
 	binder.register(meta)
 	checker.register(meta)
 }

@@ -239,6 +239,8 @@ export class Project extends EventDispatcher<{
 	#dependencyFiles: Set<string> | undefined
 
 	#roots: readonly RootUriString[] = []
+	/** Folders of generated output, from {@link MetaRegistry.registerGeneratedFolder}. */
+	#generatedRoots: readonly string[] = []
 	/**
 	 * All tracked root URIs. Each URI in this array is guaranteed to end with a slash (`/`).
 	 *
@@ -279,6 +281,28 @@ export class Project extends EventDispatcher<{
 		}
 		this.#roots = [...ans].sort((a, b) => b.length - a.length)
 		this.emit('rootsUpdated', { roots: this.#roots })
+		this.updateGeneratedRoots()
+	}
+
+	private updateGeneratedRoots(): void {
+		const generated: string[] = []
+		for (const file of this.getTrackedFiles()) {
+			for (const { marker, folder } of this.meta.generatedFolders) {
+				if (file.endsWith(`/${marker}`)) {
+					generated.push(`${file.slice(0, -marker.length)}${folder}/`)
+				}
+			}
+		}
+		this.#generatedRoots = generated
+	}
+
+	private isGeneratedMarker(uri: string): boolean {
+		return this.meta.generatedFolders.some(({ marker }) => uri.endsWith(`/${marker}`))
+	}
+
+	/** Whether `uri` is generated output, which is indexed by URI but never parsed or reported. */
+	isGenerated(uri: string): boolean {
+		return this.#generatedRoots.some((root) => uri.startsWith(root))
 	}
 
 	/**
@@ -347,7 +371,9 @@ export class Project extends EventDispatcher<{
 			// 	return
 			// }
 			this.emit('documentErrored', {
-				errors: FileNode.getErrors(node).map((e) => LanguageError.withPosRange(e, doc)),
+				errors: this.isGenerated(doc.uri)
+					? []
+					: FileNode.getErrors(node).map((e) => LanguageError.withPosRange(e, doc)),
 				uri: doc.uri,
 				version: doc.version,
 			})
@@ -356,17 +382,21 @@ export class Project extends EventDispatcher<{
 		}).on('fileCreated', async ({ uri }) => {
 			if (uri.endsWith(Project.RootSuffix)) {
 				this.updateRoots()
+			} else if (this.isGeneratedMarker(uri)) {
+				this.updateGeneratedRoots()
 			}
 			this.bindUri(uri)
 			return this.ensureBindingStarted(uri)
 		}).on('fileModified', async ({ uri }) => {
 			this.#symbolUpToDateUris.delete(uri)
-			if (this.isOnlyWatched(uri)) {
+			if (this.isOnlyWatched(uri) && !this.isGenerated(uri)) {
 				await this.ensureBindingStarted(uri)
 			}
 		}).on('fileDeleted', ({ uri }) => {
 			if (uri.endsWith(Project.RootSuffix)) {
 				this.updateRoots()
+			} else if (this.isGeneratedMarker(uri)) {
+				this.updateGeneratedRoots()
 			}
 			this.#symbolUpToDateUris.delete(uri)
 			this.symbols.clear({ uri })
@@ -558,7 +588,9 @@ export class Project extends EventDispatcher<{
 		__profiler.task('Register Symbols')
 
 		for (const [uri, values] of Object.entries(this.cacheService.errors)) {
-			this.emit('documentErrored', { errors: values, uri })
+			if (!this.isGenerated(uri)) {
+				this.emit('documentErrored', { errors: values, uri })
+			}
 		}
 		__profiler.task('Pop Errors')
 
@@ -576,7 +608,9 @@ export class Project extends EventDispatcher<{
 		}
 		__profiler.task('Bind URIs')
 
-		const files = [...addedFiles, ...changedFiles].sort(this.meta.uriSorter)
+		const files = [...addedFiles, ...changedFiles]
+			.filter((uri) => !this.isGenerated(uri))
+			.sort(this.meta.uriSorter)
 		__profiler.task('Sort URIs')
 
 		const fileCountByExtension = new Map<string, number>()
@@ -881,6 +915,7 @@ export class Project extends EventDispatcher<{
 			.filter((uri) =>
 				this.projectRoots.some((root) => fileUtil.isSubUriOf(uri, root))
 				&& !this.shouldExclude(uri)
+				&& !this.isGenerated(uri)
 			)
 			.sort(this.meta.uriSorter)
 		this.logger.info(`[Project#analyzeProject] Analyzing ${files.length} files`)
@@ -1063,7 +1098,8 @@ export class Project extends EventDispatcher<{
 	 *                 its file extension.
 	 */
 	public shouldExclude(uri: string, language?: string): boolean {
-		return (!this.isSupportedLanguage(uri, language) && !ConfigService.isConfigFile(uri))
+		return (!this.isSupportedLanguage(uri, language) && !ConfigService.isConfigFile(uri)
+			&& !this.isGeneratedMarker(uri))
 			|| this.isUserExcluded(uri)
 	}
 

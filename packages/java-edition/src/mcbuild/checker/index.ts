@@ -19,6 +19,7 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 		query.ifKnown((symbol) => {
 			isTemplate = true
 			query.enter({ usage: { type: 'reference', range: word.range } })
+			node.symbol = symbol
 			checkTemplateArgs(node, symbol, word, ctx)
 		})
 	}

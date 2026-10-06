@@ -1,4 +1,4 @@
-import type * as core from '@spyglassmc/core'
+import * as core from '@spyglassmc/core'
 import type { EntryNode, TemplateArgKind } from '../node/index.js'
 import {
 	ClockDefinitionNode,
@@ -17,6 +17,7 @@ export const TEMPLATE_CATEGORY = 'mcbuild/template'
  */
 export const FUNCTION_CATEGORY = 'mcbuild/function'
 export const VANILLA_FUNCTION_CATEGORY = 'function'
+export const FUNCTION_TAG_CATEGORY = 'tag/function'
 
 export interface TemplateParamData {
 	/** Param name, or the text of a `literal` param. */
@@ -148,6 +149,13 @@ function bindFunction(
 	ctx.symbols.query(ctx.doc, base ? VANILLA_FUNCTION_CATEGORY : FUNCTION_CATEGORY, key).enter({
 		usage: { type: 'definition', node: node.id, fullRange: node.range },
 	})
+	if (FunctionDefinitionNode.is(node) && node.appendTo) {
+		// mc-build creates the tag if needed, so appending defines it.
+		const tag = core.ResourceLocationNode.toString(node.appendTo, 'full')
+		ctx.symbols.query(ctx.doc, FUNCTION_TAG_CATEGORY, tag).enter({
+			usage: { type: 'definition', node: node.appendTo },
+		})
+	}
 	if (base && node.body) {
 		bindCallReferences(node.body, ctx, dirStack, base, [key])
 	}
@@ -204,8 +212,8 @@ function enterReference(
 	base: FileBase,
 	frames: readonly (string | undefined)[],
 ) {
-	if (ref.isTag || /<%|\$\(/.test(ref.path)) {
-		// Function tags aren't indexed yet; `<% %>` / `$(…)` targets are only known at build time.
+	if (/<%|\$\(/.test(ref.path)) {
+		// Only known at build time.
 		return
 	}
 	const id = ref.scheme === 'parent'
@@ -215,12 +223,13 @@ function enterReference(
 		return
 	}
 	ref.resolved = id
-	ctx.symbols.query(ctx.doc, VANILLA_FUNCTION_CATEGORY, id).enter({
+	const category = ref.isTag ? FUNCTION_TAG_CATEGORY : VANILLA_FUNCTION_CATEGORY
+	ctx.symbols.query(ctx.doc, category, id).enter({
 		usage: { type: 'reference', node: ref },
 	})
 }
 
-/** Links `tag function` entries to their functions. */
+/** Defines a `tag function` as `namespace:path/name`, like mc-build, and links its entries. */
 function bindFunctionTag(
 	node: JsonFileNode,
 	ctx: core.BinderContext,
@@ -233,6 +242,12 @@ function bindFunctionTag(
 	const registry = node.registry?.value
 	if (registry !== 'function' && registry !== 'functions') {
 		return
+	}
+	if (/^[^\s:<$]+$/.test(node.id.value)) {
+		const id = `${base.namespace}:${[...base.path, ...dirStack, node.id.value].join('/')}`
+		ctx.symbols.query(ctx.doc, FUNCTION_TAG_CATEGORY, id).enter({
+			usage: { type: 'definition', node: node.id, fullRange: node.range },
+		})
 	}
 	for (const tagEntry of node.entries) {
 		const value = (tagEntry as { value?: core.AstNode }).value

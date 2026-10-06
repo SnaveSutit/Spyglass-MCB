@@ -529,4 +529,23 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			await project.close()
 		}
 	})
+
+	it('links function tags across mc-build, JSON tags and appends', async () => {
+		const { project, errors, uri } = await openAt(
+			'function t a:appended {\n\tfunction #a:json\n\tfunction #a:appended\n\tfunction #a:missing\n}\n|',
+			{
+				'/root/data/a/tags/function/json.json': JSON.stringify({ values: ['a:t'] }),
+			},
+		)
+		try {
+			const tags = project.symbols.global['tag/function'] ?? {}
+			assert.ok(tags['a:json']?.definition?.length, 'JSON tag file defines a:json')
+			assert.equal(tags['a:json']?.reference?.length, 1)
+			const msgs = messagesFor(errors, uri)
+			assert.equal(msgs.length, 1, JSON.stringify(msgs))
+			assert.match(msgs[0], /a:missing/)
+		} finally {
+			await project.close()
+		}
+	})
 })

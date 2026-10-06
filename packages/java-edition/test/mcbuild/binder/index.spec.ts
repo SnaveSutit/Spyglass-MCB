@@ -11,6 +11,7 @@ import { mockProjectData } from '@spyglassmc/core/test/utils.ts'
 import {
 	fileBase,
 	FUNCTION_CATEGORY,
+	FUNCTION_TAG_CATEGORY,
 	getTemplateData,
 	register as registerBinder,
 	resolveFunctionId,
@@ -137,6 +138,17 @@ describe('mcbuild binder', () => {
 			'function loop {\n\tfunction ^0\n\texecute as @a run {\n\t\tfunction ^1\n\t\tfunction ^0\n\t}\n}',
 		)
 		assert.equal(symbols.global[VANILLA_FUNCTION_CATEGORY]?.['main:loop']?.reference?.length, 2)
+	})
+
+	it('defines `tag function` blocks under the file path and links `#` references', () => {
+		const symbols = bind(
+			'file:///pack/src/main.mcb',
+			'dir d {\n\ttag function hooks {\n\t\t./t\n\t}\n}\n'
+				+ 'function t {\n\tfunction #./d/hooks\n\tfunction #main:d/hooks\n}',
+		)
+		const tag = symbols.global[FUNCTION_TAG_CATEGORY]?.['main:d/hooks']
+		assert.equal(tag?.definition?.length, 1)
+		assert.equal(tag?.reference?.length, 2)
 	})
 
 	it('leaves build-time targets unlinked', () => {

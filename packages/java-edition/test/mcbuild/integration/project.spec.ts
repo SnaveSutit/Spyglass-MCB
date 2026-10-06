@@ -445,4 +445,16 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			await project.close()
 		}
 	})
+
+	it('resolves the explicit `template <name>` call form', async () => {
+		const { project, errors, uri } = await openAt(
+			'import ./t.mcbt\nfunction t {\n\ttemplate greet\n\ttemplate nope\n}\n|',
+			{ '/root/src/t.mcbt': 'template greet {\n\twith {\n\t\tsay hi\n\t}\n}\n' },
+		)
+		try {
+			assert.deepEqual(messagesFor(errors, uri), ['Unknown template “nope”'])
+		} finally {
+			await project.close()
+		}
+	})
 })

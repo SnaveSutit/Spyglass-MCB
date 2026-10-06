@@ -1,5 +1,5 @@
 import * as core from '@spyglassmc/core'
-import { localize } from '@spyglassmc/locales'
+import { localeQuote, localize } from '@spyglassmc/locales'
 import { CommandNode } from '@spyglassmc/mcfunction'
 import * as mcfChecker from '../../mcfunction/checker/index.js'
 import type { TemplateParamData } from '../binder/index.js'
@@ -24,6 +24,15 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 		})
 	}
 
+	if (!isTemplate && word?.explicit) {
+		ctx.err.report(
+			localize('mcbuild.checker.template.unknown', localeQuote(word.name)),
+			word.range,
+			core.ErrorSeverity.Warning,
+		)
+		isTemplate = true
+	}
+
 	// This checker stops the dispatcher descending, so check children by hand.
 	if (!isTemplate) {
 		for (const e of node.deferredErrors ?? []) {
@@ -43,16 +52,22 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 interface FirstWord {
 	name: string
 	range: core.Range
+	/** Written as `template <name>`, mc-build's explicit call form. */
+	explicit: boolean
 }
 
 function firstWord(node: CommandStatementNode, ctx: core.CheckerContext): FirstWord | undefined {
 	const text = ctx.doc.getText().slice(node.range.start, node.range.end)
-	const match = /^\s*\$?\s*([A-Za-z_][\w./-]*)/.exec(text)
+	const match = /^\s*\$?\s*(template\s+)?([A-Za-z_][\w./-]*)/.exec(text)
 	if (!match) {
 		return undefined
 	}
-	const start = node.range.start + match[0].length - match[1].length
-	return { name: match[1], range: core.Range.create(start, start + match[1].length) }
+	const start = node.range.start + match[0].length - match[2].length
+	return {
+		name: match[2],
+		range: core.Range.create(start, start + match[2].length),
+		explicit: match[1] !== undefined,
+	}
 }
 
 /** Resolves the enclosing file's `import` statements to absolute URIs. */

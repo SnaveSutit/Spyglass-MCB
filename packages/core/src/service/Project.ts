@@ -691,6 +691,11 @@ export class Project extends EventDispatcher<{
 		}
 		this.#textDocumentCache.delete(uri)
 	}
+	/** The open document at `uri`, else its contents on disk; `undefined` if unsupported or missing. */
+	readDocument(uri: string): Promise<TextDocument | undefined> {
+		return this.read(uri)
+	}
+
 	private async read(uri: string): Promise<TextDocument | undefined> {
 		const createTextDocument = async (uri: string): Promise<TextDocument | undefined> => {
 			const languageId = this.guessLanguageID(uri)

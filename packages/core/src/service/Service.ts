@@ -8,6 +8,7 @@ import type {
 	ColorInfo,
 	ColorToken,
 	InlayHint,
+	RenameTarget,
 	SignatureHelp,
 } from '../processor/index.js'
 import { ColorPresentation, completer, traversePreOrder } from '../processor/index.js'
@@ -20,6 +21,7 @@ import {
 	CompleterContext,
 	FormatterContext,
 	ProcessorContext,
+	RenameProviderContext,
 	SignatureHelpProviderContext,
 } from './Context.js'
 import { fileUtil } from './fileUtil.js'
@@ -219,6 +221,32 @@ export class Service {
 			this.logger.error(`[Service] [getInlayHints] Failed for ${doc.uri} # ${doc.version}`, e)
 		}
 		return []
+	}
+
+	/** The rename target at `offset`, or a message saying why there's none. */
+	async getRenameTarget(
+		node: FileNode<AstNode>,
+		doc: TextDocument,
+		offset: number,
+	): Promise<RenameTarget | string | undefined> {
+		try {
+			this.debug(`Getting rename target for ${doc.uri} # ${doc.version} @ ${offset}`)
+			const ctx = RenameProviderContext.create(this.project, {
+				doc,
+				offset,
+				getDocument: (uri) => this.project.readDocument(uri),
+				isGenerated: (uri) => this.project.isGenerated(uri),
+			})
+			for (const provider of this.project.meta.renameProviders) {
+				const result = await provider(node, ctx)
+				if (result) {
+					return result
+				}
+			}
+		} catch (e) {
+			this.logger.error(`[Service] [getRenameTarget] Failed for ${doc.uri} # ${doc.version}`, e)
+		}
+		return undefined
 	}
 
 	getSignatureHelp(

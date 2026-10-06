@@ -21,6 +21,7 @@ import {
 	linter,
 } from '../processor/index.js'
 import type { Linter } from '../processor/linter/Linter.js'
+import type { RenameProvider } from '../processor/RenameProvider.js'
 import type { SignatureHelpProvider } from '../processor/SignatureHelpProvider.js'
 import type { LinterContext, UriPredicateContext } from '../service/index.js'
 import type { LanguageErrorAction } from '../source/index.js'
@@ -100,6 +101,7 @@ export class MetaRegistry {
 	readonly #linters = new Map<string, LinterRegistration>()
 	readonly #parsers = new Map<string, Parser<any>>()
 	readonly #signatureHelpProviders = new Set<SignatureHelpProvider<any>>()
+	readonly #renameProviders = new Set<RenameProvider<any>>()
 	readonly #symbolRegistrars = new Map<string, SymbolRegistrarRegistration>()
 	readonly #custom = new Map<string, Map<string, unknown>>()
 	readonly #uriBinders = new Set<UriBinder>()
@@ -308,6 +310,13 @@ export class MetaRegistry {
 	}
 	public get signatureHelpProviders(): Set<SignatureHelpProvider<any>> {
 		return this.#signatureHelpProviders
+	}
+
+	public registerRenameProvider(provider: RenameProvider<any>): void {
+		this.#renameProviders.add(provider)
+	}
+	public get renameProviders(): Set<RenameProvider<any>> {
+		return this.#renameProviders
 	}
 
 	public registerSymbolRegistrar(id: string, registrar: SymbolRegistrarRegistration): void {

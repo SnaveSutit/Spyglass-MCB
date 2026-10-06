@@ -768,6 +768,39 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			}
 		})
 
+		it("offers to import the template's file", async () => {
+			const { project, service, doc, node, offset } = await openAt(
+				'import ./u.mcbt\nfunction t {\n\tgr|eet\n}\n',
+				files,
+			)
+			try {
+				const actions = service.getCodeActions(node, doc, { start: offset, end: offset })
+				assert.deepEqual(actions.map((a) => [a.title, a.changes]), [[
+					'Import “./t.mcbt”',
+					[{ type: 'edit', range: { start: 16, end: 16 }, text: 'import ./t.mcbt\n' }],
+				]])
+			} finally {
+				await project.close()
+			}
+		})
+
+		it('completes templates from other files and imports them', async () => {
+			const { project, doc, node, offset } = await openAt('function t {\n\tgr|\n}\n', files)
+			try {
+				const items = coreCompleter.file(
+					node,
+					CompleterContext.create(project as never, { doc, offset }),
+				)
+				const greet = items.find((i) => i.label === 'greet')
+				assert.equal(greet?.detail, 'mc-build template (import ./t.mcbt)')
+				assert.deepEqual(greet?.additionalEdits, [
+					{ range: { start: 0, end: 0 }, text: 'import ./t.mcbt\n' },
+				])
+			} finally {
+				await project.close()
+			}
+		})
+
 		it('only sees templates defined in directly imported files', async () => {
 			const { project, errors, uri } = await openAt(
 				'import ./u.mcbt\nfunction t {\n\twave\n\tgreet\n}\n|',

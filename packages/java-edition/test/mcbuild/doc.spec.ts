@@ -51,11 +51,11 @@ describe('mcbuild renderDocComment()', () => {
 })
 
 describe('mcbuild compoundKeys()', () => {
-	it('lists top-level keys with their offsets', () => {
+	it('lists top-level keys and values with their offsets', () => {
 		assert.deepEqual(compoundKeys('{a:1, "b c": {d:2}, \'e\':[{f:3}]}'), [
-			{ name: 'a', offset: 1, length: 1 },
-			{ name: 'b c', offset: 6, length: 5 },
-			{ name: 'e', offset: 20, length: 3 },
+			{ name: 'a', offset: 1, length: 1, value: { text: '1', offset: 3 } },
+			{ name: 'b c', offset: 6, length: 5, value: { text: '{d:2}', offset: 13 } },
+			{ name: 'e', offset: 20, length: 3, value: { text: '[{f:3}]', offset: 24 } },
 		])
 	})
 

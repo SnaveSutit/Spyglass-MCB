@@ -605,6 +605,31 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			}
 		})
 
+		it('checks macro argument values against @arg types', async () => {
+			const libUri = `${ProjectRoot}src/lib.mcb`
+			const typed = '#> Shows a message\n# @arg msg {component} Text\n# @arg who {entity}\n'
+				+ '# @arg n {int}\n# @arg bad {nope}\nfunction show {\n\t$tellraw $(who) $(msg)\n\t$say $(n) $(bad)\n}\n'
+			const { project, errors, uri } = await openAt(
+				'function t {\n'
+					+ '\tfunction lib:show {msg:\'{"text":"hi"}\', who:"@a[tag=x]", n:3, bad:1}\n'
+					+ '\tfunction lib:show {msg:\'{"text"}\', who:"@@", n:"x", bad:1}\n}\n|',
+				{ '/root/src/lib.mcb': typed },
+			)
+			try {
+				const msgs = messagesFor(errors, uri)
+				assert.deepEqual(msgs.map((m) => m.replace(/: .*/, '')), [
+					'“msg” should be component',
+					'“who” should be entity',
+					'“n” should be int',
+				])
+				assert.deepEqual(messagesFor(errors, libUri), [
+					'Unknown type “nope”; expected a Minecraft argument type like entity, vec3 or resource:item',
+				])
+			} finally {
+				await project.close()
+			}
+		})
+
 		it('checks macro arguments and deprecation', async () => {
 			const libUri = `${ProjectRoot}src/lib.mcb`
 			const { project, errors, uri } = await openAt(
@@ -727,7 +752,7 @@ describe('mcbuild integration (real Project pipeline)', () => {
 				assert.match(msgs[0], /^“pos” should be vec3: /)
 				assert.match(msgs[1], /^“item” should be resource:item: /)
 				assert.deepEqual(messagesFor(errors, templatesUri), [
-					'Unknown param type “nope”; expected a Minecraft argument type like entity, vec3 or resource:item',
+					'Unknown type “nope”; expected a Minecraft argument type like entity, vec3 or resource:item',
 				])
 			} finally {
 				await project.close()

@@ -1,4 +1,6 @@
 import * as core from '@spyglassmc/core'
+import type { DocComment } from '../doc.js'
+import { docCommentAbove, renderDocComment } from '../doc.js'
 import type { EntryNode, TemplateArgKind } from '../node/index.js'
 import {
 	ClockDefinitionNode,
@@ -31,6 +33,7 @@ export interface TemplateOverloadData {
 
 export interface TemplateSymbolData {
 	overloads: TemplateOverloadData[]
+	doc?: DocComment
 }
 
 export function getTemplateData(symbol: core.Symbol | undefined): TemplateSymbolData | undefined {
@@ -113,11 +116,12 @@ function bindChildren(
 	dirStack: string[],
 	base: FileBase | undefined,
 ) {
-	for (const child of children) {
+	for (const [i, child] of children.entries()) {
 		if (TemplateDefinitionNode.is(child)) {
-			bindTemplate(child, ctx)
+			bindTemplate(child, ctx, docCommentAbove(children, i, ctx.doc.getText()))
 		} else if (FunctionDefinitionNode.is(child) || ClockDefinitionNode.is(child)) {
-			bindFunction(child, ctx, dirStack, base)
+			const doc = docCommentAbove(children, i, ctx.doc.getText())
+			bindFunction(child, ctx, dirStack, base, doc)
 		} else if (DirectoryDefinitionNode.is(child)) {
 			if (child.body) {
 				bindChildren(child.body.children, ctx, [...dirStack, child.id.value], base)
@@ -139,6 +143,7 @@ function bindFunction(
 	ctx: core.BinderContext,
 	dirStack: string[],
 	base: FileBase | undefined,
+	doc: DocComment | undefined,
 ) {
 	if (node.id.value.length === 0) {
 		return
@@ -147,6 +152,8 @@ function bindFunction(
 		? `${base.namespace}:${[...base.path, ...dirStack, node.id.value].join('/')}`
 		: [...dirStack, node.id.value].join('/')
 	ctx.symbols.query(ctx.doc, base ? VANILLA_FUNCTION_CATEGORY : FUNCTION_CATEGORY, key).enter({
+		// Always set, so removing a doc block clears it.
+		data: { desc: doc && renderDocComment(doc), data: doc && { doc } },
 		usage: { type: 'definition', node: node.id, fullRange: node.range },
 	})
 	if (FunctionDefinitionNode.is(node) && node.appendTo) {
@@ -278,7 +285,11 @@ function compileTimeBodies(node: core.AstNode): core.AstNode[] {
 	return bodies
 }
 
-function bindTemplate(node: TemplateDefinitionNode, ctx: core.BinderContext) {
+function bindTemplate(
+	node: TemplateDefinitionNode,
+	ctx: core.BinderContext,
+	doc: DocComment | undefined,
+) {
 	if (node.id.value.length === 0) {
 		return
 	}
@@ -286,7 +297,10 @@ function bindTemplate(node: TemplateDefinitionNode, ctx: core.BinderContext) {
 		params: overload.params.map((p) => ({ name: p.name.value, kind: p.kind })),
 	}))
 	ctx.symbols.query(ctx.doc, TEMPLATE_CATEGORY, node.id.value).enter({
-		data: { data: { overloads } satisfies TemplateSymbolData },
+		data: {
+			desc: doc ? renderDocComment(doc) : undefined,
+			data: { overloads, doc } satisfies TemplateSymbolData,
+		},
 		usage: {
 			type: 'definition',
 			node: node.id,

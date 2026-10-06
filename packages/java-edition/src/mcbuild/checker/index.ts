@@ -224,7 +224,7 @@ function checkParamTypes(
 		const problem = checkParamType(arg.text, parser, ctx)
 		if (problem) {
 			ctx.err.report(
-				localize('mcbuild.checker.template.param-type', localeQuote(param.name), type, problem),
+				localize('mcbuild.checker.type-mismatch', localeQuote(param.name), type, problem),
 				arg.range,
 				core.ErrorSeverity.Warning,
 			)
@@ -232,33 +232,50 @@ function checkParamTypes(
 	}
 }
 
-/** Warns on `@param` types that aren't Minecraft argument types, above the template or a `with`. */
-const templateDefinition: core.Checker<TemplateDefinitionNode> = async (node, ctx) => {
+/** The comment lines directly above `node`. */
+function commentsAbove(node: core.AstNode): core.CommentNode[] {
 	const siblings = node.parent?.children ?? []
-	const above: core.AstNode[] = []
-	for (let i = siblings.indexOf(node) - 1; i >= 0 && core.CommentNode.is(siblings[i]); i--) {
-		above.push(siblings[i])
+	const above: core.CommentNode[] = []
+	// By range: checker nodes are proxies, so identity doesn't hold.
+	const index = siblings.findIndex((s) => s.range.start === node.range.start)
+	for (let i = index - 1; i >= 0; i--) {
+		const sibling = siblings[i]
+		if (!core.CommentNode.is(sibling)) {
+			break
+		}
+		above.push(sibling)
 	}
-	for (const comment of [...above, ...node.children].filter(core.CommentNode.is)) {
+	return above
+}
+
+/** Warns on `@arg` / `@param` types that aren't Minecraft argument types. */
+function reportUnknownTypes(nodes: readonly core.AstNode[], ctx: core.CheckerContext) {
+	for (const comment of nodes.filter(core.CommentNode.is)) {
 		const text = ctx.doc.getText().slice(comment.range.start, comment.range.end)
-		const match = /@param\s+\S+\s*\{([^}]*)\}/.exec(text)
+		const match = /@(?:arg|param)\s+\S+\s*\{([^}]*)\}/.exec(text)
 		if (match && !paramTypeParser(match[1].trim())) {
 			const start = comment.range.start + match.index + match[0].length - 1 - match[1].length
 			ctx.err.report(
-				localize('mcbuild.checker.template.unknown-type', localeQuote(match[1].trim())),
+				localize('mcbuild.checker.unknown-type', localeQuote(match[1].trim())),
 				core.Range.create(start, start + match[1].length),
 				core.ErrorSeverity.Warning,
 			)
 		}
 	}
+}
+
+/** Warns on unknown `@param` types above the template or a `with`. */
+const templateDefinition: core.Checker<TemplateDefinitionNode> = async (node, ctx) => {
+	reportUnknownTypes([...commentsAbove(node), ...node.children], ctx)
 	// This checker stops the dispatcher descending, so check children by hand.
 	for (const child of node.children) {
 		await core.checker.fallback(child, ctx)
 	}
 }
 
-/** Warns on `$(x)` in a documented function's body when `x` has no `@arg`. */
+/** Warns on unknown `@arg` types, and on `$(x)` in the body when `x` has no `@arg`. */
 const functionDefinition: core.Checker<FunctionDefinitionNode> = async (node, ctx) => {
+	reportUnknownTypes(commentsAbove(node), ctx)
 	const doc = getDocComment(node.id.symbol)
 	if (doc && doc.args.length > 0 && node.body) {
 		const declared = new Set(doc.args.map((a) => a.name))
@@ -308,10 +325,27 @@ const functionCall: core.Checker<FunctionCallNode> = async (node, ctx) => {
 				}
 			}
 			for (const arg of doc.args) {
-				if (!keys.some((k) => k.name === arg.name)) {
+				const key = keys.find((k) => k.name === arg.name)
+				if (!key) {
 					ctx.err.report(
 						localize('mcbuild.checker.macro.missing', localeQuote(arg.name), id),
 						node.data.range,
+						core.ErrorSeverity.Warning,
+					)
+				}
+				const parser = arg.type ? paramTypeParser(arg.type) : undefined
+				const problem = key?.value && parser
+					&& checkParamType(macroValue(key.value.text), parser, ctx)
+				if (key?.value && arg.type && problem) {
+					const valueStart = start + key.value.offset
+					ctx.err.report(
+						localize(
+							'mcbuild.checker.type-mismatch',
+							localeQuote(arg.name),
+							arg.type,
+							problem,
+						),
+						core.Range.create(valueStart, valueStart + key.value.text.length),
 						core.ErrorSeverity.Warning,
 					)
 				}
@@ -351,6 +385,8 @@ interface CompoundKey {
 	/** Offset of the key in the compound text. */
 	offset: number
 	length: number
+	/** The value's trimmed text and its offset in the compound text. */
+	value?: { text: string; offset: number }
 }
 
 /**
@@ -365,6 +401,15 @@ export function compoundKeys(text: string): CompoundKey[] | undefined {
 	const keys: CompoundKey[] = []
 	let depth = 0
 	let expectKey = false
+	let valueStart: number | undefined
+	const endValue = (end: number) => {
+		const key = keys[keys.length - 1]
+		if (key && valueStart !== undefined) {
+			const raw = trimmed.slice(valueStart, end)
+			key.value = { text: raw.trim(), offset: valueStart + raw.length - raw.trimStart().length }
+		}
+		valueStart = undefined
+	}
 	for (let i = 0; i < trimmed.length; i++) {
 		const c = trimmed[i]
 		if (c === '"' || c === "'") {
@@ -379,7 +424,13 @@ export function compoundKeys(text: string): CompoundKey[] | undefined {
 			expectKey = c === '{' && depth === 1
 		} else if (c === '}' || c === ']') {
 			depth--
+			if (depth === 0) {
+				endValue(i)
+			}
+		} else if (c === ':' && depth === 1 && valueStart === undefined && !expectKey) {
+			valueStart = i + 1
 		} else if (c === ',' && depth === 1) {
+			endValue(i)
 			expectKey = true
 		} else if (depth === 1 && expectKey && /[\w.+-]/.test(c)) {
 			const match = /^[\w.+-]+/.exec(trimmed.slice(i))!
@@ -389,6 +440,11 @@ export function compoundKeys(text: string): CompoundKey[] | undefined {
 		}
 	}
 	return depth === 0 ? keys : undefined
+}
+
+/** The text mc-build substitutes for `$(x)`: a string's contents, else the SNBT as written. */
+function macroValue(snbt: string): string {
+	return /^(["']).*\1$/s.test(snbt) ? snbt.slice(1, -1).replace(/\\(.)/g, '$1') : snbt
 }
 
 function closingQuote(text: string, start: number): number {

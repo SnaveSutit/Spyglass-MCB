@@ -31,6 +31,11 @@ export interface TemplateOverloadData {
 	params: TemplateParamData[]
 }
 
+/** `a:int mode b:block`, as written in a `with` line. */
+export function describeParams(params: readonly TemplateParamData[]): string {
+	return params.map((p) => (p.kind === 'literal' ? p.name : `${p.name}:${p.kind}`)).join(' ')
+}
+
 export interface TemplateSymbolData {
 	overloads: TemplateOverloadData[]
 	doc?: DocComment
@@ -298,7 +303,7 @@ function bindTemplate(
 	}))
 	ctx.symbols.query(ctx.doc, TEMPLATE_CATEGORY, node.id.value).enter({
 		data: {
-			desc: doc ? renderDocComment(doc) : undefined,
+			desc: templateDesc(node.id.value, overloads, doc),
 			data: { overloads, doc } satisfies TemplateSymbolData,
 		},
 		usage: {
@@ -307,6 +312,20 @@ function bindTemplate(
 			fullRange: node.range,
 		},
 	})
+}
+
+/** Hover markdown: every overload as a call, then the doc block. */
+function templateDesc(
+	name: string,
+	overloads: readonly TemplateOverloadData[],
+	doc: DocComment | undefined,
+): string {
+	const calls = overloads.map((o) => `${name} ${describeParams(o.params)}`.trimEnd())
+	const parts = [`\`\`\`mc-build\n${calls.join('\n')}\n\`\`\``]
+	if (doc) {
+		parts.push(renderDocComment(doc))
+	}
+	return parts.join('\n\n')
 }
 
 export function register(meta: core.MetaRegistry): void {

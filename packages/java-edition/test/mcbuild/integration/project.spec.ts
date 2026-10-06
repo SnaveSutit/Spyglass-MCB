@@ -24,6 +24,7 @@ import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuil
 import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import { addFunction } from '@spyglassmc/java-edition/lib/mcbuild/quickFix.js'
+import { templateSignatureHelp } from '@spyglassmc/java-edition/lib/mcbuild/signatureHelp.js'
 import { getMockNodes } from '@spyglassmc/java-edition/lib/mcfunction/completer/index.js'
 import { argument } from '@spyglassmc/java-edition/lib/mcfunction/parser/index.js'
 import { signatureHelpProvider } from '@spyglassmc/java-edition/lib/mcfunction/signatureHelpProvider.js'
@@ -88,6 +89,7 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	meta.registerCompleter('mcfunction:command_child/literal', coreCompleter.literal)
 	meta.registerGeneratedFolder('mcb.config.js', 'data')
 	meta.registerUndeclaredSymbolAction('function', addFunction)
+	meta.registerSignatureHelpProvider(templateSignatureHelp)
 	registerBinder(meta)
 	registerChecker(meta)
 	meta.registerSignatureHelpProvider(signatureHelpProvider(tree as never))
@@ -620,6 +622,51 @@ describe('mcbuild integration (real Project pipeline)', () => {
 				assert.deepEqual(messagesFor(errors, libUri), [
 					"Macro argument “nope” isn't declared with @arg",
 				])
+			} finally {
+				await project.close()
+			}
+		})
+	})
+
+	describe('template signatures', () => {
+		const templates = '#> Moves a score\n# @param target Who to move\ntemplate move {\n'
+			+ '\twith target:word amount:int {\n\t\tsay a\n\t}\n'
+			+ '\twith target:word rest:raw {\n\t\tsay b\n\t}\n}\n'
+
+		it('lists overloads on hover', async () => {
+			const { project, service, doc, node, offset } = await openAt(
+				'import ./t.mcbt\nfunction t {\n\tmo|ve @s 1\n}\n',
+				{ '/root/src/t.mcbt': templates },
+			)
+			try {
+				const hover = service.getHover(node, doc, offset)?.markdown ?? ''
+				assert.match(
+					hover,
+					/```mc-build\nmove target:word amount:int\nmove target:word rest:raw\n```/,
+				)
+				assert.match(hover, /`target` — Who to move/)
+			} finally {
+				await project.close()
+			}
+		})
+
+		it('highlights the parameter being typed', async () => {
+			const { project, service, doc, node, offset } = await openAt(
+				'import ./t.mcbt\nfunction t {\n\tmove @s |\n}\n',
+				{ '/root/src/t.mcbt': templates },
+			)
+			try {
+				const help = service.getSignatureHelp(node, doc, offset)
+				assert.deepEqual(
+					help?.signatures.map((
+						s,
+					) => [s.label, s.activeParameter, s.parameters[0].documentation]),
+					[
+						['move target:word amount:int', 1, 'Who to move'],
+						['move target:word rest:raw', 1, 'Who to move'],
+					],
+				)
+				assert.equal(help?.signatures[0].documentation, 'Moves a score')
 			} finally {
 				await project.close()
 			}

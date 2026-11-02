@@ -4,14 +4,14 @@ import type { TextDocument } from 'vscode-languageserver-textdocument'
 import { EntryNode } from './node/index.js'
 
 /**
- * Candidate URIs for an `import`. `/`-paths resolve from the mc-build project dir (the one holding
- * `src/`), like mc-build; outside `src/`, from each root.
+ * Candidate URIs for an `import`. `/`-paths resolve from `src/`, mc-build's compiler base dir;
+ * outside `src/`, from each root.
  */
 export function resolveImport(spec: string, from: string, roots: readonly string[]): string[] {
 	try {
 		const srcIndex = from.lastIndexOf('/src/')
 		if (spec.startsWith('/') && srcIndex >= 0) {
-			return [new URL('.' + spec, from.slice(0, srcIndex + 1)).href]
+			return [new URL('.' + spec, from.slice(0, srcIndex + '/src/'.length)).href]
 		}
 		if (spec.startsWith('/')) {
 			return roots.map((root) =>

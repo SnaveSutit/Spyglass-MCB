@@ -153,9 +153,9 @@ describe('mcbuild checker — template calls', () => {
 describe('mcbuild resolveImport()', () => {
 	const from = 'file:///ws/pack/src/ns/main.mcb'
 
-	it('resolves `/` from the mc-build project dir', () => {
+	it('resolves `/` from `src/`, like mc-build', () => {
 		assert.deepEqual(resolveImport('/lib/t.mcbt', from, ['file:///ws/']), [
-			'file:///ws/pack/lib/t.mcbt',
+			'file:///ws/pack/src/lib/t.mcbt',
 		])
 	})
 

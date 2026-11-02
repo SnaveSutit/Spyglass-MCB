@@ -7,6 +7,7 @@ import type {
 	Color,
 	ColorInfo,
 	ColorToken,
+	CompletionItem,
 	InlayHint,
 	RenameTarget,
 	SignatureHelp,
@@ -134,15 +135,22 @@ export class Service {
 		return []
 	}
 
-	complete(node: FileNode<AstNode>, doc: TextDocument, offset: number, triggerCharacter?: string) {
+	async complete(
+		node: FileNode<AstNode>,
+		doc: TextDocument,
+		offset: number,
+		triggerCharacter?: string,
+	): Promise<CompletionItem[]> {
 		try {
 			this.debug(`Getting completion for ${doc.uri} # ${doc.version} @ ${offset}`)
 			const shouldComplete = this.project.meta.shouldComplete(doc.languageId, triggerCharacter)
 			if (shouldComplete) {
-				return completer.file(
-					node,
-					CompleterContext.create(this.project, { doc, offset, triggerCharacter }),
-				)
+				const ctx = CompleterContext.create(this.project, { doc, offset, triggerCharacter })
+				const items = [...completer.file(node, ctx)]
+				for (const provider of this.project.meta.completionProviders) {
+					items.push(...await provider(node, ctx))
+				}
+				return items
 			}
 		} catch (e) {
 			this.logger.error(`[Service] [complete] Failed for ${doc.uri} # ${doc.version}`, e)

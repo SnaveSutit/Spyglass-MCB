@@ -201,7 +201,7 @@ async function getAutocomplete(
 
 	const { node, doc } = docAndNode
 
-	return service.complete(node, doc, content.length)
+	return (await service.complete(node, doc, content.length))
 		.sort((a, b) => (a.sortText ?? a.label).localeCompare(b.sortText ?? b.label))
 		// Convert autocomplete options into full text options
 		.map((i) => {

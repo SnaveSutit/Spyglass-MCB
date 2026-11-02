@@ -1,7 +1,7 @@
 /* istanbul ignore file */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument'
-import type { Logger } from '../common/index.js'
+import type { Externals, Logger } from '../common/index.js'
 import { formatterContextIndentation } from '../processor/index.js'
 import type { Range } from '../source/index.js'
 import { ReadonlySource } from '../source/index.js'
@@ -16,6 +16,7 @@ import type { ProfilerFactory } from './Profiler.js'
 import type { ProjectData } from './Project.js'
 
 export interface ContextBase {
+	externals: Externals
 	fs: FileService
 	isDebugging: boolean
 	logger: Logger
@@ -27,6 +28,7 @@ export interface ContextBase {
 export namespace ContextBase {
 	export function create(project: ProjectData): ContextBase {
 		return {
+			externals: project.externals,
 			fs: project.fs,
 			isDebugging: project.isDebugging,
 			logger: project.logger,

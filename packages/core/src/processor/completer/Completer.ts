@@ -55,6 +55,8 @@ export interface CompletionItem {
 	filterText?: string
 	/** Edits elsewhere in the document applied with this item, e.g. adding an import. */
 	additionalEdits?: { range: Range; text: string }[]
+	/** Opens completion again once inserted, e.g. after picking a folder. */
+	retrigger?: boolean
 }
 export namespace CompletionItem {
 	/* istanbul ignore next */

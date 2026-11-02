@@ -275,6 +275,9 @@ export function completionItem(
 		insertTextFormat: InsertTextFormat.Snippet,
 		insertTextMode: ls.InsertTextMode.adjustIndentation,
 		...(completion.deprecated ? { tags: [ls.CompletionItemTag.Deprecated] } : {}),
+		...(completion.retrigger
+			? { command: { title: 'Suggest', command: 'editor.action.triggerSuggest' } }
+			: {}),
 	}
 	return ans
 }

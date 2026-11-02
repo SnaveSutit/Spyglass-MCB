@@ -58,7 +58,7 @@ async function spyglassCompletions(ctx: CompletionContext): Promise<CompletionRe
 	if (!docAndNodes) {
 		return null
 	}
-	const items = service.complete(docAndNodes.node, docAndNodes.doc, ctx.pos)
+	const items = await service.complete(docAndNodes.node, docAndNodes.doc, ctx.pos)
 	if (!items.length) {
 		return null
 	}

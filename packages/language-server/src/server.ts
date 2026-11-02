@@ -410,7 +410,7 @@ connection.onCompletion(async ({ textDocument: { uri }, position, context }) => 
 	}
 	const { doc, node } = docAndNode
 	const offset = toCore.offset(position, doc)
-	const items = service.complete(node, doc, offset, context?.triggerCharacter)
+	const items = await service.complete(node, doc, offset, context?.triggerCharacter)
 	return items.map((item) =>
 		toLS.completionItem(
 			item,

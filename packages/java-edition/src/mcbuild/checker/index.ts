@@ -7,11 +7,12 @@ import type { TemplateOverloadData, TemplateParamData } from '../binder/index.js
 import { describeParams, getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
 import type { DocComment } from '../doc.js'
 import { getDocComment, paramType } from '../doc.js'
-import { importAction, importedUris, isTemplateInScope } from '../imports.js'
+import { importAction, importedUris, isTemplateInScope, resolveImport } from '../imports.js'
 import type {
 	CommandStatementNode,
 	FunctionCallNode,
 	FunctionDefinitionNode,
+	ImportNode,
 	JsNode,
 	ReferenceNode,
 	TemplateDefinitionNode,
@@ -356,6 +357,28 @@ const functionCall: core.Checker<FunctionCallNode> = async (node, ctx) => {
 }
 
 /** Warns on references to `@deprecated` functions and function tags. */
+/** Warns when an import doesn't resolve to a file, which fails the mc-build build. */
+const importStatement: core.Checker<ImportNode> = async (node, ctx) => {
+	const spec = node.path.value
+	if (!spec) {
+		return
+	}
+	for (const uri of resolveImport(spec, ctx.doc.uri, ctx.roots)) {
+		try {
+			if ((await ctx.externals.fs.stat(uri)).isFile()) {
+				return
+			}
+		} catch {
+			// Missing; try the next candidate.
+		}
+	}
+	ctx.err.report(
+		localize('mcbuild.checker.import.unresolved', localeQuote(spec)),
+		node.path.range,
+		core.ErrorSeverity.Warning,
+	)
+}
+
 const reference: core.SyncChecker<ReferenceNode> = (node, ctx) => {
 	if (node.resolved) {
 		reportDeprecated(getDocComment(node.symbol), node.resolved, node.range, ctx)
@@ -513,6 +536,7 @@ export function register(meta: core.MetaRegistry): void {
 	meta.registerChecker<FunctionDefinitionNode>('mcbuild:function_definition', functionDefinition)
 	meta.registerChecker<FunctionCallNode>('mcbuild:function_call', functionCall)
 	meta.registerChecker<ReferenceNode>('mcbuild:reference', reference)
+	meta.registerChecker<ImportNode>('mcbuild:import', importStatement)
 	meta.registerChecker<JsNode>('mcbuild:js', js)
 	meta.registerChecker<TemplateDefinitionNode>('mcbuild:template_definition', templateDefinition)
 }

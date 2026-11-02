@@ -8,30 +8,48 @@ import {
 	Source,
 } from '@spyglassmc/core'
 import * as core from '@spyglassmc/core'
+import { getNodeJsExternals } from '@spyglassmc/core/lib/nodejs.js'
 import { mockProjectData } from '@spyglassmc/core/test/utils.ts'
 import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
 import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
 import { relativeSpec, resolveImport } from '@spyglassmc/java-edition/lib/mcbuild/imports.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
+import { memfs } from 'memfs'
 import assert from 'node:assert/strict'
+import type fsp from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { describe, it } from 'node:test'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { realArgument, tree } from '../parser/utils.ts'
 
 const mcbEntry = entry({ tree, argument: realArgument, commandOptions: {} })
 
+/** A project on an in-memory disk; `parseAndBind` writes each file to it so imports resolve. */
 function makeProject() {
 	const meta = new MetaRegistry()
 	registerBinder(meta)
 	registerChecker(meta)
-	return mockProjectData({ meta, logger: Logger.create() })
+	const { fs } = memfs()
+	const externals = getNodeJsExternals({
+		cacheRoot: 'file:///cache/',
+		logger: Logger.noop(),
+		nodeFsp: fs.promises as unknown as typeof fsp,
+	})
+	return { ...mockProjectData({ meta, logger: Logger.create(), externals }), disk: fs }
+}
+
+function writeFile(project: ReturnType<typeof makeProject>, uri: string, content: string) {
+	const path = decodeURIComponent(new URL(uri).pathname)
+	project.disk.mkdirSync(dirname(path), { recursive: true })
+	project.disk.writeFileSync(path, content)
 }
 
 function parseAndBind(
-	project: ReturnType<typeof mockProjectData>,
+	project: ReturnType<typeof makeProject>,
 	uri: string,
 	content: string,
 ): core.AstNode {
+	writeFile(project, uri, content)
 	const doc = TextDocument.create(uri, 'mcbuild', 0, content)
 	const node = mcbEntry(new Source(content), ParserContext.create(project, { doc }))
 	if (node === Failure) {
@@ -147,6 +165,50 @@ describe('mcbuild checker — template calls', () => {
 
 	it('accepts a js span for an int param (runtime value cannot be checked)', async () => {
 		assert.deepEqual((await call('t <%40 + 2%>')).map((e) => e.message), [])
+	})
+})
+
+describe('mcbuild checker — imports', () => {
+	const mainUri = 'file:///pack/src/ns/main.mcb'
+
+	async function checkImports(main: string, files: Record<string, string> = {}) {
+		const project = makeProject()
+		for (const [uri, content] of Object.entries(files)) {
+			writeFile(project, uri, content)
+		}
+		const node = parseAndBind(project, mainUri, main)
+		const ctx = CheckerContext.create(project, {
+			doc: TextDocument.create(mainUri, 'mc-build', 0, main),
+		})
+		await core.checker.fallback(node, ctx)
+		return ctx.err.dump()
+	}
+
+	it('accepts relative, project-root, script and data imports that exist', async () => {
+		const errors = await checkImports(
+			'import ../lib/t.mcbt\nimport /tools/t.mcbt\nimport ./helpers.js\nimport ./data.json',
+			{
+				'file:///pack/src/lib/t.mcbt': '',
+				'file:///pack/src/tools/t.mcbt': '',
+				'file:///pack/src/ns/helpers.js': '',
+				'file:///pack/src/ns/data.json': '{}',
+			},
+		)
+		assert.deepEqual(errors.map((e) => e.message), [])
+	})
+
+	it('warns on the path of an import that does not resolve', async () => {
+		const main = 'import ./missing.mcbt'
+		const errors = await checkImports(main)
+		assert.equal(errors.length, 1)
+		assert.equal(errors[0].severity, core.ErrorSeverity.Warning)
+		assert.match(errors[0].message, /missing\.mcbt/)
+		assert.deepEqual(errors[0].range, core.Range.create(7, main.length))
+	})
+
+	it('warns when an import points at a folder', async () => {
+		const errors = await checkImports('import ./lib', { 'file:///pack/src/ns/lib/t.mcbt': '' })
+		assert.equal(errors.length, 1)
 	})
 })
 

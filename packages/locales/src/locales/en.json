@@ -79,6 +79,7 @@
   "long": "a long",
   "long.between": "a long between %0% and %1%",
   "mcbuild.checker.deprecated": "%0% is deprecated",
+  "mcbuild.checker.import.unresolved": "Can't find import %0%",
   "mcbuild.checker.macro.missing": "Missing macro argument %0% for %1%",
   "mcbuild.checker.macro.no-data": "%0% expects macro arguments: %1%",
   "mcbuild.checker.macro.undeclared": "Macro argument %0% isn't declared with @arg",

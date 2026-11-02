@@ -22,6 +22,7 @@ import { registerUriBuilders, uriBinder } from '@spyglassmc/java-edition/lib/bin
 import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
 import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
 import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
+import { importCompletion } from '@spyglassmc/java-edition/lib/mcbuild/importCompletion.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import { addFunction } from '@spyglassmc/java-edition/lib/mcbuild/quickFix.js'
 import { renameProvider } from '@spyglassmc/java-edition/lib/mcbuild/rename.js'
@@ -92,6 +93,7 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	meta.registerUndeclaredSymbolAction('function', addFunction)
 	meta.registerSignatureHelpProvider(templateSignatureHelp)
 	meta.registerRenameProvider(renameProvider)
+	meta.registerCompletionProvider(importCompletion)
 	registerBinder(meta)
 	registerChecker(meta)
 	meta.registerSignatureHelpProvider(signatureHelpProvider(tree as never))
@@ -413,6 +415,24 @@ describe('mcbuild integration (real Project pipeline)', () => {
 		assert.ok(docAndNode)
 		return { ...harness, ...docAndNode, offset, uri }
 	}
+
+	it('completes import paths from disk and warns on a missing one', async () => {
+		const { project, service, errors, doc, node, offset, uri } = await openAt(
+			'import ./gone.mcbt\nimport ../|',
+			{ '/root/src/lib/t.mcbt': '', '/root/src/lib/helpers.js': '' },
+			'src/ns/main.mcb',
+		)
+		try {
+			const labels = (await service.complete(node, doc, offset)).map((i) => i.label)
+			assert.deepEqual(labels.sort(), ['../', 'lib/', 'ns/'])
+			assert.ok(
+				messagesFor(errors, uri).includes("Can't find import “./gone.mcbt”"),
+				JSON.stringify(messagesFor(errors, uri)),
+			)
+		} finally {
+			await project.close()
+		}
+	})
 
 	it('reports vanilla command errors through the pipeline', async () => {
 		const { project, errors, uri } = await openAt('function t {\n\tbogus cmd\n\tsay hi\n}\n|')

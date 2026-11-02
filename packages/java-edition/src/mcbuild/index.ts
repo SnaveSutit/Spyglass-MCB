@@ -3,6 +3,7 @@ import * as mcf from '@spyglassmc/mcfunction'
 import * as binder from './binder/index.js'
 import * as checker from './checker/index.js'
 import * as completer from './completer/index.js'
+import { importCompletion } from './importCompletion.js'
 import { entry } from './parser/index.js'
 import { addFunction } from './quickFix.js'
 import { renameProvider } from './rename.js'
@@ -80,6 +81,7 @@ export const initialize = (
 	meta.registerUndeclaredSymbolAction('function', addFunction)
 	meta.registerSignatureHelpProvider(templateSignatureHelp)
 	meta.registerRenameProvider(renameProvider)
+	meta.registerCompletionProvider(importCompletion)
 	binder.register(meta)
 	checker.register(meta)
 }

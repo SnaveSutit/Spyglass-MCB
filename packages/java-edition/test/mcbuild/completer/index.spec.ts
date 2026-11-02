@@ -187,9 +187,9 @@ describe('mc-build completer', () => {
 		assert.ok(labels.includes('block'))
 	})
 
-	it('offers import path prefixes', () => {
-		const labels = completeAt('import |', 'file:///pack/src/main.mcb')
-		assert.deepEqual(labels.sort(), ['./', '/'])
+	it('leaves import paths to the async provider', () => {
+		assert.deepEqual(completeAt('import |'), [])
+		assert.deepEqual(completeAt('import ./li|'), [])
 	})
 
 	it('does not offer keywords once a command line has arguments', () => {

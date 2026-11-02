@@ -430,18 +430,9 @@ const complete = (
 		}
 	}
 
-	const importMatch = /^import\s+(\S*)$/.exec(trimmed)
-	if (importMatch) {
-		return [
-			CompletionItem.create('./', wordRange, {
-				kind: CompletionKind.Folder,
-				detail: 'relative import',
-			}),
-			CompletionItem.create('/', wordRange, {
-				kind: CompletionKind.Folder,
-				detail: 'project-root import',
-			}),
-		]
+	// Paths come from the async `importCompletion` provider, which can read the disk.
+	if (/^import\s+\S*$/.test(trimmed)) {
+		return []
 	}
 
 	const fnRefMatch = /^function\s+\S+\s+(\S*)$/.exec(trimmed)

@@ -41,7 +41,7 @@ import type { CommandBridgeOptions } from './command.js'
 import { parseCommandStatement, splitInterpolation, tokenSource } from './command.js'
 import { parseEq } from './eq.js'
 import { parseJs } from './js.js'
-import { jsonFileType, parseJsonBody } from './json.js'
+import { jsonBodyExtent, jsonFileType, parseJsonBody } from './json.js'
 import { sliceToken, syntheticPrefixed, TokenReader } from './reader.js'
 
 export type McbParserOptions = CommandBridgeOptions
@@ -1249,51 +1249,40 @@ class ParseState {
 			entries: [],
 			children: registry ? [registry, id] : [id],
 		}
-		const open = this.reader.peek()
-		if (open?.type !== 'bracket_open') {
+		// The tokenizer only splits braces at line ends, so `"a": true}` hides a `}`.
+		// Like mc-build, find the body in the source text instead of balancing tokens.
+		const bodyStart = id.range.end
+			+ /^[^\S\n]*/.exec(this.fullText.slice(id.range.end))![0].length
+		const opener = this.fullText[bodyStart]
+		if (opener !== '{' && opener !== '[') {
 			this.report(localize('mcbuild.parser.expected-block'), token.range)
 			return node
 		}
-		const close = this.consumeBalancedBlock()
-		if (!close) {
+		const extent = jsonBodyExtent(this.fullText, bodyStart)
+		if (!extent) {
+			this.skipTokensBefore(this.fullText.length)
+			this.report(localize('mcbuild.parser.unexpected-eof'), this.eofRange())
 			return node
 		}
-		const bodyStart = open.range.start
-		const bodyEnd = close.range.end
-		const text = this.fullText.slice(bodyStart, bodyEnd)
+		this.skipTokensBefore(extent.end)
 		const type = jsonFileType(kind, registryValue)
 		const body = parseJsonBody(
-			text,
-			core.Range.create(bodyStart, bodyEnd),
+			extent.text,
+			core.Range.create(bodyStart, extent.end),
 			type,
 			this.ctx,
 		)
 		node.entries = [body]
 		node.children.push(body)
-		node.range = core.Range.span(token.range, core.Range.create(bodyEnd))
+		node.range = core.Range.span(token.range, core.Range.create(extent.end))
 		return node
 	}
 
-	/** Skips past the next `{ … }`, returning the `}` token. */
-	private consumeBalancedBlock(): McbToken | undefined {
-		const open = this.reader.next()
-		if (open?.type !== 'bracket_open') {
-			return undefined
+	/** Consumes every token that starts before `offset`. */
+	private skipTokensBefore(offset: number): void {
+		while (this.reader.hasNext() && this.reader.peek()!.range.start < offset) {
+			this.reader.skip()
 		}
-		let depth = 1
-		while (this.reader.hasNext()) {
-			const token = this.reader.next()!
-			if (token.type === 'bracket_open') {
-				depth++
-			} else if (token.type === 'bracket_close') {
-				depth--
-				if (depth === 0) {
-					return token
-				}
-			}
-		}
-		this.report(localize('mcbuild.parser.unexpected-eof'), this.eofRange())
-		return undefined
 	}
 
 	/** The first `count` words after `from`; missing ones are empty at end of line. */

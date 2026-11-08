@@ -55,6 +55,104 @@ export function jsonFileType(
 	}
 }
 
+/**
+ * Bracket depth across JSON lines, skipping strings, comments and `<% %>`.
+ * A port of mc-build's `JsonDepthScanner`.
+ */
+class JsonDepthScanner {
+	depth = 0
+	inBlockComment = false
+
+	scan(text: string): void {
+		let i = 0
+		while (i < text.length) {
+			if (this.inBlockComment) {
+				const end = text.indexOf('*/', i)
+				if (end === -1) {
+					return
+				}
+				this.inBlockComment = false
+				i = end + 2
+			} else if (text[i] === '"' || text[i] === "'") {
+				i = skipString(text, i)
+			} else if (text.startsWith('<%', i)) {
+				const end = text.indexOf('%>', i + 2)
+				if (end === -1) {
+					return
+				}
+				i = end + 2
+			} else if (text.startsWith('//', i)) {
+				return
+			} else if (text.startsWith('/*', i)) {
+				this.inBlockComment = true
+				i += 2
+			} else {
+				if (text[i] === '{' || text[i] === '[') {
+					this.depth++
+				} else if (text[i] === '}' || text[i] === ']') {
+					this.depth--
+				}
+				i++
+			}
+		}
+	}
+}
+
+function skipString(text: string, start: number): number {
+	const quote = text[start]
+	let i = start + 1
+	while (i < text.length) {
+		if (text[i] === '\\') {
+			i += 2
+		} else if (text[i] === quote) {
+			return i + 1
+		} else {
+			i++
+		}
+	}
+	return i
+}
+
+export interface JsonBodyExtent {
+	/** End of the line that closes the root bracket. */
+	end: number
+	/** The body's source, with mc-build's `#` comment lines blanked out to keep offsets. */
+	text: string
+}
+
+/**
+ * Finds the JSON body starting at the `{` or `[` at `start`, line by line like mc-build:
+ * the body ends with the line that brings the bracket depth back to zero.
+ * Returns `undefined` if the file ends first.
+ */
+export function jsonBodyExtent(fullText: string, start: number): JsonBodyExtent | undefined {
+	const scanner = new JsonDepthScanner()
+	let text = ''
+	let lineStart = start
+	while (lineStart <= fullText.length) {
+		const newline = fullText.indexOf('\n', lineStart)
+		const lineEnd = newline === -1 ? fullText.length : newline
+		const line = fullText.slice(lineStart, lineEnd)
+		const isComment = lineStart !== start && !scanner.inBlockComment
+			&& line.trimStart().startsWith('#')
+		if (isComment) {
+			text += ' '.repeat(line.length)
+		} else {
+			text += line
+			scanner.scan(line)
+			if (scanner.depth <= 0) {
+				return { end: lineStart + line.trimEnd().length, text: text.trimEnd() }
+			}
+		}
+		if (newline === -1) {
+			return undefined
+		}
+		text += '\n'
+		lineStart = newline + 1
+	}
+	return undefined
+}
+
 /** Parses a JSON body, wrapped in `json:typed` when `type` is known. */
 export function parseJsonBody(
 	text: string,

@@ -1,7 +1,7 @@
 import * as core from '@spyglassmc/core'
 import { localeQuote, localize } from '@spyglassmc/locales'
 import type { TextDocument } from 'vscode-languageserver-textdocument'
-import { EntryNode } from './node/index.js'
+import { EntryNode, ImportNode } from './node/index.js'
 
 /**
  * Candidate URIs for an `import`. `/`-paths resolve from `src/`, mc-build's compiler base dir;
@@ -23,6 +23,35 @@ export function resolveImport(spec: string, from: string, roots: readonly string
 	} catch {
 		return []
 	}
+}
+
+/** The file an `import` of `spec` loads: the first candidate that exists. */
+export async function findImport(
+	spec: string,
+	ctx: { doc: TextDocument; roots: readonly string[]; externals: core.Externals },
+): Promise<string | undefined> {
+	for (const uri of resolveImport(spec, ctx.doc.uri, ctx.roots)) {
+		try {
+			if ((await ctx.externals.fs.stat(uri)).isFile()) {
+				return uri
+			}
+		} catch {
+			// Missing; try the next candidate.
+		}
+	}
+	return undefined
+}
+
+/** Go-to-definition on an import path opens the imported file. */
+export const importDefinition: core.DefinitionProvider = async (file, ctx) => {
+	const imp = file.children?.[0]?.children?.find((n) =>
+		ImportNode.is(n as core.AstNode) && core.Range.contains(n.range, ctx.offset, true)
+	) as core.DeepReadonly<ImportNode> | undefined
+	if (!imp?.path.value || !core.Range.contains(imp.path.range, ctx.offset, true)) {
+		return undefined
+	}
+	const uri = await findImport(imp.path.value, ctx)
+	return uri ? core.SymbolLocations.create(imp.path.range, [{ uri }]) : undefined
 }
 
 /** The URIs the file containing `node` imports. */

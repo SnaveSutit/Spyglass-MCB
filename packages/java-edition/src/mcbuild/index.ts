@@ -4,6 +4,7 @@ import * as binder from './binder/index.js'
 import * as checker from './checker/index.js'
 import * as completer from './completer/index.js'
 import { importCompletion } from './importCompletion.js'
+import { importDefinition } from './imports.js'
 import { entry } from './parser/index.js'
 import { addFunction } from './quickFix.js'
 import { renameProvider } from './rename.js'
@@ -82,6 +83,7 @@ export const initialize = (
 	meta.registerUndeclaredSymbolAction('function', addFunction)
 	meta.registerSignatureHelpProvider(templateSignatureHelp)
 	meta.registerRenameProvider(renameProvider)
+	meta.registerDefinitionProvider(importDefinition)
 	meta.registerCompletionProvider(importCompletion)
 	binder.register(meta)
 	checker.register(meta)

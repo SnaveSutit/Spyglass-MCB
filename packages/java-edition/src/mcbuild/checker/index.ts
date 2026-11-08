@@ -7,7 +7,7 @@ import type { TemplateOverloadData, TemplateParamData } from '../binder/index.js
 import { describeParams, getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
 import type { DocComment } from '../doc.js'
 import { getDocComment, paramType } from '../doc.js'
-import { importAction, importedUris, isTemplateInScope, resolveImport } from '../imports.js'
+import { findImport, importAction, importedUris, isTemplateInScope } from '../imports.js'
 import type {
 	CommandStatementNode,
 	FunctionCallNode,
@@ -363,14 +363,8 @@ const importStatement: core.Checker<ImportNode> = async (node, ctx) => {
 	if (!spec) {
 		return
 	}
-	for (const uri of resolveImport(spec, ctx.doc.uri, ctx.roots)) {
-		try {
-			if ((await ctx.externals.fs.stat(uri)).isFile()) {
-				return
-			}
-		} catch {
-			// Missing; try the next candidate.
-		}
+	if (await findImport(spec, ctx)) {
+		return
 	}
 	ctx.err.report(
 		localize('mcbuild.checker.import.unresolved', localeQuote(spec)),

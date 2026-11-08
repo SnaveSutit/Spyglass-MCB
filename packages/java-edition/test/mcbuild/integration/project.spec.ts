@@ -25,6 +25,7 @@ import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild
 import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
 import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
 import { importCompletion } from '@spyglassmc/java-edition/lib/mcbuild/importCompletion.js'
+import { importDefinition } from '@spyglassmc/java-edition/lib/mcbuild/imports.js'
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import { addFunction } from '@spyglassmc/java-edition/lib/mcbuild/quickFix.js'
 import { renameProvider } from '@spyglassmc/java-edition/lib/mcbuild/rename.js'
@@ -98,6 +99,7 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	meta.registerSignatureHelpProvider(templateSignatureHelp)
 	meta.registerRenameProvider(renameProvider)
 	meta.registerCompletionProvider(importCompletion)
+	meta.registerDefinitionProvider(importDefinition)
 	// Like java-edition's, against the version this harness loads.
 	const { validator } = mcdoc.runtime.attribute
 	mcdoc.runtime.registerAttribute(meta, 'since', validator.string, {
@@ -454,6 +456,40 @@ describe('mcbuild integration (real Project pipeline)', () => {
 				messagesFor(errors, uri).includes("Can't find import “./gone.mcbt”"),
 				JSON.stringify(messagesFor(errors, uri)),
 			)
+		} finally {
+			await project.close()
+		}
+	})
+
+	it('goes to the file an import names', async () => {
+		const text = 'import ../lib/t.mcbt\nimport /lib/helpers.js\nimport ./gone.mcbt\n'
+			+ 'function f {\n\tgreet\n}\n'
+		const { project, service, doc, node } = await openAt(text, {
+			'/root/src/lib/t.mcbt': 'template greet {\n\twith {\n\t}\n}\n',
+			'/root/src/lib/helpers.js': '',
+		}, 'src/ns/main.mcb')
+		const definitionAt = async (needle: string) => {
+			const found = await service.getDefinitions(node, doc, text.indexOf(needle) + 1, [
+				'definition',
+			])
+			return found && {
+				origin: text.slice(found.range.start, found.range.end),
+				uris: found.locations?.map((l) => l.uri),
+			}
+		}
+		try {
+			assert.deepEqual(await definitionAt('../lib/t'), {
+				origin: '../lib/t.mcbt',
+				uris: [`${ProjectRoot}src/lib/t.mcbt`],
+			})
+			assert.deepEqual(await definitionAt('/lib/helpers'), {
+				origin: '/lib/helpers.js',
+				uris: [`${ProjectRoot}src/lib/helpers.js`],
+			})
+			assert.equal(await definitionAt('./gone'), undefined)
+			assert.equal(await definitionAt('import'), undefined)
+			// Symbols still answer outside import paths.
+			assert.deepEqual((await definitionAt('greet\n}'))?.uris, [`${ProjectRoot}src/lib/t.mcbt`])
 		} finally {
 			await project.close()
 		}

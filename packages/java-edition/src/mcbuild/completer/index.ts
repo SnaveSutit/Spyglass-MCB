@@ -4,7 +4,7 @@ import { CommandNode } from '@spyglassmc/mcfunction'
 import { fileBase, FUNCTION_CATEGORY, TEMPLATE_CATEGORY } from '../binder/index.js'
 import { importEdit, isTemplateInScope, relativeSpec } from '../imports.js'
 import type { CompileTimeLoopNode } from '../node/index.js'
-import { DirectoryDefinitionNode, TemplateOverloadNode } from '../node/index.js'
+import { DirectoryDefinitionNode, JsonFileNode, TemplateOverloadNode } from '../node/index.js'
 
 export interface McbCompleterDeps {
 	/** `mcf.completer.command`; mcfunction has no per-node command completer to dispatch to. */
@@ -162,6 +162,14 @@ function delegate(path: core.AstNode[], ctx: core.CompleterContext): CompletionI
 		}
 	}
 	return []
+}
+
+/** The data file whose JSON body holds the cursor, where mc-build's line rules don't apply. */
+function jsonFileAt(path: core.AstNode[]): JsonFileNode | undefined {
+	const index = path.findIndex(JsonFileNode.is)
+	return index !== -1 && path[index + 1]?.type.startsWith('json:')
+		? path[index] as JsonFileNode
+		: undefined
 }
 
 type RefScheme = 'none' | 'relative' | 'absolute' | 'parent' | 'id'
@@ -408,8 +416,16 @@ const complete = (
 
 	const path = pathTo(node, ctx.offset)
 	const script = scriptAt(text, ctx.offset)
+	const jsonFile = jsonFileAt(path)
+	// A new line only opens completion in JSON bodies, like in JSON files.
+	if (ctx.triggerCharacter === '\n' && (!jsonFile || script)) {
+		return []
+	}
 	if (script) {
 		return scriptItems(text, ctx.offset, script, path)
+	}
+	if (jsonFile) {
+		return core.completer.dispatch(jsonFile, ctx)
 	}
 	const dirStack = path
 		.filter(DirectoryDefinitionNode.is)

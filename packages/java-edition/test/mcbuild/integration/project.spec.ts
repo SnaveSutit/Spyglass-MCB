@@ -1,4 +1,5 @@
 import type {
+	CompletionItem,
 	Externals,
 	FileWatcher,
 	FileWatcherEventMap,
@@ -19,6 +20,7 @@ import {
 } from '@spyglassmc/core'
 import { getNodeJsExternals } from '@spyglassmc/core/lib/nodejs.js'
 import { registerUriBuilders, uriBinder } from '@spyglassmc/java-edition/lib/binder/index.js'
+import { ReleaseVersion } from '@spyglassmc/java-edition/lib/dependency/index.js'
 import { register as registerBinder } from '@spyglassmc/java-edition/lib/mcbuild/binder/index.js'
 import { register as registerChecker } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
 import { entry as mcbCompleterEntry } from '@spyglassmc/java-edition/lib/mcbuild/completer/index.js'
@@ -30,6 +32,8 @@ import { templateSignatureHelp } from '@spyglassmc/java-edition/lib/mcbuild/sign
 import { getMockNodes } from '@spyglassmc/java-edition/lib/mcfunction/completer/index.js'
 import { argument } from '@spyglassmc/java-edition/lib/mcfunction/parser/index.js'
 import { signatureHelpProvider } from '@spyglassmc/java-edition/lib/mcfunction/signatureHelpProvider.js'
+import * as json from '@spyglassmc/json'
+import * as mcdoc from '@spyglassmc/mcdoc'
 import * as mcf from '@spyglassmc/mcfunction'
 import { memfs } from 'memfs'
 import assert from 'node:assert/strict'
@@ -94,6 +98,14 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	meta.registerSignatureHelpProvider(templateSignatureHelp)
 	meta.registerRenameProvider(renameProvider)
 	meta.registerCompletionProvider(importCompletion)
+	// Like java-edition's, against the version this harness loads.
+	const { validator } = mcdoc.runtime.attribute
+	mcdoc.runtime.registerAttribute(meta, 'since', validator.string, {
+		filterElement: (config) => ReleaseVersion.cmp('1.21', config as ReleaseVersion) >= 0,
+	})
+	mcdoc.runtime.registerAttribute(meta, 'until', validator.string, {
+		filterElement: (config) => ReleaseVersion.cmp('1.21', config as ReleaseVersion) < 0,
+	})
 	registerBinder(meta)
 	registerChecker(meta)
 	meta.registerSignatureHelpProvider(signatureHelpProvider(tree as never))
@@ -119,7 +131,7 @@ async function setup(files: Record<string, string>): Promise<Harness> {
 			cacheRoot: CacheRoot,
 			defaultConfig: ConfigService.merge(VanillaConfig, { env: { dependencies: [] } }),
 			externals,
-			initializers: [mcbuildInitializer],
+			initializers: [mcdoc.initialize, json.getInitializer(), mcbuildInitializer],
 			projectRoots: [ProjectRoot],
 		},
 	})
@@ -305,6 +317,15 @@ describe('mcbuild integration (real Project pipeline)', () => {
 		files: Record<string, string>,
 		open: string,
 	): Promise<string[]> {
+		return (await completeItemsInProject(files, open)).map((i) => i.label)
+	}
+
+	/** Like `completeInProject`, but returns the whole items. */
+	async function completeItemsInProject(
+		files: Record<string, string>,
+		open: string,
+		triggerCharacter?: string,
+	): Promise<CompletionItem[]> {
 		const marked = files[open]
 		const offset = marked.indexOf('|')
 		assert.notEqual(offset, -1, 'a file must contain the `|` cursor marker')
@@ -325,9 +346,13 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			assert.ok(docAndNode)
 			const items = coreCompleter.file(
 				docAndNode.node,
-				CompleterContext.create(project as never, { doc: docAndNode.doc, offset }),
+				CompleterContext.create(project as never, {
+					doc: docAndNode.doc,
+					offset,
+					triggerCharacter,
+				}),
 			)
-			return items.map((i) => i.label)
+			return items
 		} finally {
 			await project.close()
 		}
@@ -1031,6 +1056,137 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			assert.match(
 				String(await renameAt('function t {\n\tfunction ^|0\n}\n', 'x')),
 				/by position/,
+			)
+		})
+	})
+
+	describe('data files', () => {
+		const schema = 'dispatch minecraft:resource[advancement] to struct {\n'
+			+ '\tparent?: string,\n'
+			+ '\tcriteria: struct { [string]: struct { trigger: ("tick" | "location") } },\n'
+			+ '\trewards?: struct { experience?: int },\n'
+			+ '}\n'
+		const completeJson = (body: string) =>
+			completeInProject({
+				'schema.mcdoc': schema,
+				'src/a.mcb': `function f {\n\tsay hi\n}\nadvancement a {\n${body}\n}\n`,
+			}, 'src/a.mcb')
+
+		it('completes JSON keys instead of mc-build keywords', async () => {
+			assert.deepEqual(await completeJson('\t|'), ['parent', 'criteria', 'rewards'])
+			assert.deepEqual(await completeJson('\t"cr|"'), ['parent', 'criteria', 'rewards'])
+			assert.deepEqual(await completeJson('\t"parent": "x",\n\t|'), ['criteria', 'rewards'])
+			assert.deepEqual(await completeJson('\t"rewards": {|}'), ['experience'])
+		})
+
+		/** The source an item replaces and the snippet it inserts, keyed by label. */
+		const editsAt = async (body: string) => {
+			const content = `advancement a {\n${body}\n}\n`
+			const items = await completeItemsInProject({
+				'schema.mcdoc': schema,
+				'src/a.mcb': content,
+			}, 'src/a.mcb')
+			const clean = content.replace('|', '')
+			return Object.fromEntries(items.map((i) => [i.label, {
+				replaces: clean.slice(i.range.start, i.range.end),
+				insert: i.insertText,
+				retrigger: !!i.retrigger,
+				...(i.replacesRange ? {} : { insertOnly: true }),
+			}]))
+		}
+
+		it('completes keys from an unquoted word, replacing it', async () => {
+			const edits = await editsAt('\tcr|')
+			assert.deepEqual(Object.keys(edits), ['parent', 'criteria', 'rewards'])
+			assert.deepEqual(edits['criteria'], {
+				replaces: 'cr',
+				insert: '"criteria": {$1}',
+				retrigger: false,
+			})
+			assert.deepEqual(Object.keys(await editsAt('\t"parent": "x",\n\tcr|')), [
+				'criteria',
+				'rewards',
+			])
+		})
+
+		it('replaces both auto-closed quotes when completing a key', async () => {
+			assert.deepEqual((await editsAt('\t"|"'))['criteria'], {
+				replaces: '""',
+				insert: '"criteria": {$1}',
+				retrigger: false,
+			})
+		})
+
+		it('opens completion on a new line only inside JSON bodies', async () => {
+			const labels = async (content: string) =>
+				(await completeItemsInProject(
+					{ 'schema.mcdoc': schema, 'src/a.mcb': content },
+					'src/a.mcb',
+					'\n',
+				))
+					.map((i) => i.label)
+			assert.deepEqual(await labels('advancement a {\n\t|\n}\n'), [
+				'parent',
+				'criteria',
+				'rewards',
+			])
+			assert.deepEqual(await labels('function f {\n\tsay hi\n\t|\n}\n'), [])
+		})
+
+		it('inserts a value placeholder by type, and a comma before the next pair', async () => {
+			const edits = await editsAt('\t|\n\t"criteria": {}')
+			assert.deepEqual(edits['parent'], {
+				replaces: '',
+				insert: '"parent": "$1",',
+				retrigger: true,
+			})
+			const rewards = await editsAt('\t"rewards": {\n\t\t|\n\t}')
+			assert.deepEqual(rewards['experience'], {
+				replaces: '',
+				insert: '"experience": ${1:0}',
+				retrigger: false,
+			})
+		})
+
+		it('replaces an unquoted word with a typed value', async () => {
+			const edits = await editsAt(
+				'\t"criteria": {\n\t\t"t": {\n\t\t\t"trigger": ti|\n\t\t}\n\t}',
+			)
+			assert.deepEqual(edits['tick'], { replaces: 'ti', insert: '"tick"', retrigger: false })
+		})
+
+		it('completes enum values inside quotes, replacing the whole string', async () => {
+			const trigger = (value: string) =>
+				editsAt(`\t"criteria": {\n\t\t"t": {\n\t\t\t"trigger": ${value}\n\t\t}\n\t}`)
+			for (const [value, replaces] of [['"|"', '""'], ['"ti|"', '"ti"'], ['"|', '"']]) {
+				const edits = await trigger(value)
+				assert.deepEqual(Object.keys(edits), ['tick', 'location'], value)
+				assert.deepEqual(edits['tick'], { replaces, insert: '"tick"', retrigger: false }, value)
+			}
+		})
+
+		it('picks placeholders through dispatchers and version-gated unions', async () => {
+			const items = await completeItemsInProject({
+				'schema.mcdoc': 'dispatch minecraft:resource[predicate] to struct {\n'
+					+ '\tvehicle?: minecraft:sub[[%key]],\n'
+					+ '\tflags?: minecraft:sub[[%key]],\n'
+					+ '\tgated?: (#[until="1.20"] int | #[since="1.20"] struct {}),\n'
+					+ '}\n'
+					+ 'dispatch minecraft:sub[vehicle] to struct { a?: int }\n'
+					+ 'dispatch minecraft:sub[flags] to [int]\n',
+				'src/a.mcb': 'predicate p {\n\t|\n}\n',
+			}, 'src/a.mcb')
+			assert.deepEqual(items.map((i) => i.insertText), [
+				'"vehicle": {$1}',
+				'"flags": [$1]',
+				'"gated": {$1}',
+			])
+		})
+
+		it('completes typed JSON values', async () => {
+			assert.deepEqual(
+				await completeJson('\t"criteria": {\n\t\t"t": {\n\t\t\t"trigger": |\n\t\t}\n\t}'),
+				['tick', 'location'],
 			)
 		})
 	})

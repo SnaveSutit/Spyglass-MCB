@@ -17,7 +17,7 @@ const array: core.Completer<JsonArrayNode> = (node, ctx) => {
 		return ctx.meta.getCompleter(item.value.type)(item.value, ctx)
 	}
 	if (node.typeDef?.kind === 'list') {
-		const completions = getValues(node.typeDef.item, ctx.offset, ctx)
+		const completions = valuesAt(node.typeDef.item, ctx.offset, ctx)
 		if (ctx.offset < (node.children[node.children.length - 1]?.range.start ?? 0)) {
 			return completions.map(c => ({ ...c, insertText: c.insertText + ',' }))
 		}
@@ -26,27 +26,9 @@ const array: core.Completer<JsonArrayNode> = (node, ctx) => {
 	return []
 }
 
-const object = core.completer.record<JsonStringNode, JsonNode, JsonObjectNode>({
-	key: (record, pair, ctx, range, iv, ipe, exitingKeys) => {
-		if (!record.typeDef) {
-			return []
-		}
-		const keySet = new Set(exitingKeys.map(n => n.value))
-		return mcdoc.runtime.completer
-			.getFields(record.typeDef, ctx)
-			.filter(({ key }) => !keySet.has(key))
-			.map(({ key, field }) =>
-				core.CompletionItem.create(key, pair?.key ?? range, {
-					kind: core.CompletionKind.Field,
-					detail: mcdoc.McdocType.toString(field.type as core.Mutable<mcdoc.McdocType>),
-					documentation: field.desc,
-					deprecated: field.deprecated,
-					sortText: field.optional ? '$b' : '$a', // sort above hardcoded $schema
-					filterText: `"${key}"`,
-					insertText: `"${key}"${iv ? ': ' : ''}${ipe ? '$1,' : ''}`,
-				})
-			)
-	},
+const record = core.completer.record<JsonStringNode, JsonNode, JsonObjectNode>({
+	key: (record, pair, ctx, range, iv, ipe, existingKeys) =>
+		keyItems(record, ctx, pair?.key ?? range, iv, ipe, existingKeys),
 	value: (record, pair, ctx, range) => {
 		if (pair.value) {
 			return ctx.meta.getCompleter(pair.value.type)(pair.value, ctx)
@@ -57,15 +39,214 @@ const object = core.completer.record<JsonStringNode, JsonNode, JsonObjectNode>({
 				.find(({ key }) => key === pairKey)
 				?.field.type
 			if (field) {
-				return getValues(field, range, ctx)
+				return valuesAt(field, range, ctx)
 			}
 		}
 		return []
 	},
 })
 
+const object: core.Completer<JsonObjectNode> = (node, ctx) => {
+	// JSON's parser skips an unquoted word, so no key node is there for `record` to find.
+	const word = bareWordAt(ctx)
+	const inChild = node.children.some(({ key, value }) =>
+		[key, value].some((n) =>
+			n && !core.Range.isEmpty(n.range) && core.Range.contains(n, ctx.offset, true)
+		)
+	)
+	if (
+		word && !inChild && node.innerRange && core.Range.contains(node.innerRange, ctx.offset, true)
+	) {
+		const before = ctx.doc.getText().slice(0, word.start).trimEnd()
+		if (!before.endsWith(':')) {
+			const keys = node.children.flatMap((n) => n.key ? [n.key] : [])
+			const hasNextPair = node.children.some((n) => n.key && n.range.start >= word.end)
+			return keyItems(node, ctx, word, true, hasNextPair, keys)
+				.map((item) => ({ ...item, filterText: item.label }))
+		}
+	}
+	return record(node, ctx)
+}
+
+function keyItems(
+	record: core.DeepReadonly<JsonObjectNode>,
+	ctx: core.CompleterContext,
+	range: core.RangeLike,
+	insertValue: boolean,
+	insertPairEnd: boolean,
+	existingKeys: core.DeepReadonly<JsonStringNode>[],
+): core.CompletionItem[] {
+	if (!record.typeDef) {
+		return []
+	}
+	const keySet = new Set(existingKeys.map(n => n.value))
+	return mcdoc.runtime.completer
+		.getFields(record.typeDef, ctx)
+		.filter(({ key }) => !keySet.has(key))
+		.map(({ key, field }) => {
+			const value = insertValue ? valuePlaceholder(field.type, ctx, key) : undefined
+			return core.CompletionItem.create(key, range, {
+				kind: core.CompletionKind.Field,
+				detail: mcdoc.McdocType.toString(field.type as core.Mutable<mcdoc.McdocType>),
+				documentation: field.desc,
+				deprecated: field.deprecated,
+				sortText: field.optional ? '$b' : '$a', // sort above hardcoded $schema
+				filterText: `"${key}"`,
+				insertText: `"${key}"${value === undefined ? '' : `: ${value}`}${
+					insertPairEnd ? ',' : ''
+				}`,
+				// Offer the value straight away, but not for a number, or for an object or
+				// list, where Enter should make a new line first.
+				retrigger: value !== undefined && !['${1:0}', '{$1}', '[$1]'].includes(value),
+				// A key's range is its whole quoted string, closing quote included.
+				replacesRange: true,
+			})
+		})
+}
+
+/**
+ * The snippet VS Code's JSON support inserts for a property's value, by type.
+ * `key` is the property being inserted, for dispatchers indexed by `%key`.
+ */
+function valuePlaceholder(
+	type: core.DeepReadonly<mcdoc.McdocType>,
+	ctx: core.CompleterContext,
+	key: string,
+	depth = 0,
+): string {
+	// A small cap guards against self-referencing types.
+	if (depth > 8) {
+		return '$1'
+	}
+	const common = (types: readonly core.DeepReadonly<mcdoc.McdocType>[]) => {
+		const kept = types.filter((t) =>
+			mcdoc.runtime.attribute.shouldKeepAccordingToAttributeFilters(t.attributes, ctx)
+		)
+		const placeholders = new Set(kept.map((t) => valuePlaceholder(t, ctx, key, depth + 1)))
+		return placeholders.size === 1 ? [...placeholders][0] : '$1'
+	}
+	switch (type.kind) {
+		case 'string':
+			return '"$1"'
+		case 'struct':
+			return '{$1}'
+		case 'list':
+		case 'tuple':
+		case 'byte_array':
+		case 'int_array':
+		case 'long_array':
+			return '[$1]'
+		case 'byte':
+		case 'short':
+		case 'int':
+		case 'long':
+		case 'float':
+		case 'double':
+			return '${1:0}'
+		case 'literal':
+			return type.value.kind === 'string'
+				? '"$1"'
+				: type.value.kind === 'boolean'
+				? '$1'
+				: '${1:0}'
+		case 'enum':
+			return type.enumKind === 'string' ? '"$1"' : '${1:0}'
+		case 'concrete':
+		case 'template':
+		case 'mapped':
+			return valuePlaceholder(type.child, ctx, key, depth + 1)
+		case 'reference': {
+			const data = type.path
+				? ctx.symbols.query(ctx.doc, 'mcdoc', type.path)
+					.getData(mcdoc.binder.TypeDefSymbolData.is)
+				: undefined
+			return data ? valuePlaceholder(data.typeDef, ctx, key, depth + 1) : '$1'
+		}
+		case 'dispatcher': {
+			const members = ctx.symbols.query(ctx.doc, 'mcdoc/dispatcher', type.registry)
+				.symbol?.members
+			const types = members
+				? dispatcherIds(type.parallelIndices, key)?.flatMap((id) => {
+					const data = (members[id] ?? members['%unknown'])?.data
+					return mcdoc.binder.TypeDefSymbolData.is(data) ? [data.typeDef] : []
+				})
+				: undefined
+			return types?.length ? common(types) : '$1'
+		}
+		case 'union':
+			return common(type.members)
+		default:
+			return '$1'
+	}
+}
+
+/**
+ * The dispatcher members `indices` pick, as mcdoc stores them (no `minecraft:`).
+ * Only static indices and `[[%key]]` are known before the value exists.
+ */
+function dispatcherIds(
+	indices: core.DeepReadonly<mcdoc.ParallelIndices>,
+	key: string,
+): string[] | undefined {
+	const ids: string[] = []
+	for (const index of indices) {
+		let id: string
+		if (index.kind === 'static') {
+			id = index.value
+		} else if (
+			index.accessor.length === 1 && typeof index.accessor[0] !== 'string'
+			&& index.accessor[0].keyword === 'key'
+		) {
+			id = key
+		} else {
+			return undefined
+		}
+		if (id.startsWith('%')) {
+			return undefined
+		}
+		ids.push(id.replace(/^minecraft:/, ''))
+	}
+	return ids
+}
+
+/** Values for a spot with no value node yet, replacing an unquoted word if one was typed. */
+function valuesAt(
+	typeDef: core.DeepReadonly<mcdoc.McdocType>,
+	range: core.RangeLike,
+	ctx: core.CompleterContext,
+): core.CompletionItem[] {
+	const word = bareWordAt(ctx)
+	const items = getValues(typeDef, word ?? range, ctx)
+	return word ? items.map((item) => ({ ...item, filterText: item.label })) : items
+}
+
+/** `node`'s range, cut at the cursor when an unclosed string runs onto later lines. */
+function stringRange(node: core.DeepReadonly<JsonStringNode>, ctx: core.CompleterContext) {
+	const text = ctx.doc.getText().slice(node.range.start, node.range.end)
+	return text.includes('\n') ? core.Range.create(node.range.start, ctx.offset) : node.range
+}
+
+/**
+ * The unquoted word that ends at the cursor, if any. JSON's parser skips such a word,
+ * so completions that replace it need its range.
+ */
+function bareWordAt(ctx: core.CompleterContext): core.Range | undefined {
+	const text = ctx.doc.getText()
+	const word = /(?<!["\w.:/-])[A-Za-z_][\w.:/-]*$/.exec(
+		text.slice(Math.max(0, ctx.offset - 256), ctx.offset),
+	)
+	return word ? core.Range.create(ctx.offset - word[0].length, ctx.offset) : undefined
+}
+
 const primitive: core.Completer<JsonPrimitiveNode> = (node, ctx) => {
 	const insideRange = core.Range.contains(node, ctx.offset, true)
+	// Core's string completer only knows parsed values like ids; enum strings have none.
+	if (node.type === 'json:string' && insideRange && node.typeDef && !node.children?.length) {
+		const values = getValues(node.typeDef, stringRange(node, ctx), ctx)
+		if (values.length) {
+			return values
+		}
+	}
 	if (node.type === 'json:string' && insideRange) {
 		// Delegate to core's string completer for the `\N{…}` named-Unicode
 		// escape completion. Works whether or not the json:string has a child
@@ -95,6 +276,7 @@ function getValues(
 				filterText: kind === 'string' ? `"${value}"` : value,
 				insertText: kind === 'string' ? `"${insertText ?? value}"` : insertText ?? value,
 				sortText,
+				replacesRange: true,
 			})
 		)
 }

@@ -36,6 +36,7 @@ export const initialize = (
 	const commandOptions = options.mcfunctionOptions.commandOptions ?? {}
 	const triggerCharacters = [
 		' ',
+		'\n',
 		'{',
 		':',
 		'/',

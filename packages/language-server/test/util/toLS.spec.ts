@@ -111,6 +111,22 @@ describe('completionItem()', () => {
 			newText: 'import ./t.mcbt\n',
 		}])
 	})
+
+	it('replaces the whole range when the item asks, even with insert/replace support', () => {
+		const doc = TextDocument.create('file:///a.json', 'json', 0, '{"cr"}')
+		const item = (replacesRange: boolean) =>
+			completionItem(
+				{ label: 'criteria', range: { start: 1, end: 5 }, replacesRange },
+				doc,
+				4,
+				true,
+			)
+		assert.deepEqual(item(true).textEdit, {
+			range: { start: { line: 0, character: 1 }, end: { line: 0, character: 5 } },
+			newText: 'criteria',
+		})
+		assert.ok('insert' in item(false).textEdit!)
+	})
 })
 
 describe('workspaceEdit()', () => {

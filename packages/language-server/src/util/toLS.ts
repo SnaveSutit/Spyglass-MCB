@@ -251,7 +251,7 @@ export function completionItem(
 	insertReplaceSupport: boolean | undefined,
 ): ls.CompletionItem {
 	const insertText = completion.insertText ?? completion.label
-	const canInsertReplace = insertReplaceSupport
+	const canInsertReplace = insertReplaceSupport && !completion.replacesRange
 		&& ![core.CR, core.LF, core.CRLF].includes(insertText)
 	const textEdit: ls.TextEdit | ls.InsertReplaceEdit = canInsertReplace
 		? ls.InsertReplaceEdit.create(

@@ -57,6 +57,11 @@ export interface CompletionItem {
 	additionalEdits?: { range: Range; text: string }[]
 	/** Opens completion again once inserted, e.g. after picking a folder. */
 	retrigger?: boolean
+	/**
+	 * Replaces all of `range`, even past the cursor, whatever the editor's insert mode.
+	 * For text that must go as a whole, like a quoted string's closing quote.
+	 */
+	replacesRange?: boolean
 }
 export namespace CompletionItem {
 	/* istanbul ignore next */

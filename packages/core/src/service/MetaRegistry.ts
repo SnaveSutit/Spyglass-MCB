@@ -3,6 +3,7 @@ import { Lazy } from '../common/index.js'
 import type { AstNode } from '../node/index.js'
 import type { Parser } from '../parser/index.js'
 import type { CompletionProvider } from '../processor/CompletionProvider.js'
+import type { DefinitionProvider } from '../processor/DefinitionProvider.js'
 import type { Formatter } from '../processor/formatter/index.js'
 import type {
 	Binder,
@@ -97,6 +98,7 @@ export class MetaRegistry {
 	readonly #codeActionProviders = new Map<string, CodeActionProvider<any>>()
 	readonly #completers = new Map<string, Completer<any>>()
 	readonly #completionProviders = new Set<CompletionProvider<any>>()
+	readonly #definitionProviders = new Set<DefinitionProvider<any>>()
 	readonly #dependencyProviders = new Map<DependencyKey, DependencyProvider>()
 	readonly #formatters = new Map<string, Formatter<any>>()
 	readonly #inlayHintProviders = new Set<InlayHintProvider<any>>()
@@ -319,6 +321,13 @@ export class MetaRegistry {
 	}
 	public get completionProviders(): Set<CompletionProvider<any>> {
 		return this.#completionProviders
+	}
+
+	public registerDefinitionProvider(provider: DefinitionProvider<any>): void {
+		this.#definitionProviders.add(provider)
+	}
+	public get definitionProviders(): Set<DefinitionProvider<any>> {
+		return this.#definitionProviders
 	}
 
 	public registerRenameProvider(provider: RenameProvider<any>): void {

@@ -242,6 +242,17 @@ export namespace SignatureHelpProviderContext {
 	}
 }
 
+export interface DefinitionProviderContext extends ProcessorWithOffsetContext {}
+export interface DefinitionProviderContextOptions extends ProcessorWithOffsetContextOptions {}
+export namespace DefinitionProviderContext {
+	export function create(
+		project: ProjectData,
+		opts: DefinitionProviderContextOptions,
+	): DefinitionProviderContext {
+		return ProcessorWithOffsetContext.create(project, opts)
+	}
+}
+
 export interface RenameProviderContext extends ProcessorWithOffsetContext {
 	/** The open document at `uri`, else its contents on disk. */
 	getDocument(this: void, uri: string): Promise<TextDocument | undefined>

@@ -446,7 +446,7 @@ connection.onDefinition(async ({ textDocument: { uri }, position }) => {
 		return undefined
 	}
 	const { doc, node } = docAndNode
-	const ans = await service.getSymbolLocations(node, doc, toCore.offset(position, doc), [
+	const ans = await service.getDefinitions(node, doc, toCore.offset(position, doc), [
 		'definition',
 		'declaration',
 		'implementation',

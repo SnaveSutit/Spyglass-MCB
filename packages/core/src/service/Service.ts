@@ -20,6 +20,7 @@ import {
 	CodeActionProviderContext,
 	ColorizerContext,
 	CompleterContext,
+	DefinitionProviderContext,
 	FormatterContext,
 	ProcessorContext,
 	RenameProviderContext,
@@ -286,6 +287,29 @@ export class Service {
 	 *
 	 * @returns Symbol locations of the selected symbol at `offset`, or `undefined` if there's no symbol at `offset`.
 	 */
+	/**
+	 * Definition locations at `offset`: from definition providers first, then the symbol there.
+	 */
+	async getDefinitions(
+		file: FileNode<AstNode>,
+		doc: TextDocument,
+		offset: number,
+		searchedUsages: readonly SymbolUsageType[],
+	): Promise<SymbolLocations | undefined> {
+		try {
+			const ctx = DefinitionProviderContext.create(this.project, { doc, offset })
+			for (const provider of this.project.meta.definitionProviders) {
+				const result = await provider(file, ctx)
+				if (result) {
+					return result
+				}
+			}
+		} catch (e) {
+			this.logger.error(`[Service] [getDefinitions] Failed for ${doc.uri} # ${doc.version}`, e)
+		}
+		return this.getSymbolLocations(file, doc, offset, searchedUsages)
+	}
+
 	async getSymbolLocations(
 		file: FileNode<AstNode>,
 		doc: TextDocument,

@@ -12,7 +12,7 @@ import * as core from '@spyglassmc/core'
  * ```
  */
 export interface DocComment {
-	/** Markdown: the `#>` line plus any untagged lines. */
+	/** Markdown: the `#>` lines plus any untagged lines. */
 	text: string
 	/** Macro arguments. */
 	args: DocEntry[]
@@ -30,38 +30,43 @@ export interface DocEntry {
 	desc: string
 }
 
-/** The doc block directly above `siblings[index]`, if any. Blank lines end a block. */
+/**
+ * The doc block directly above `siblings[index]`, if any. It starts at the first of one or more
+ * `#>` lines. Blank lines end a block.
+ */
 export function docCommentAbove(
 	siblings: readonly core.AstNode[],
 	index: number,
 	text: string,
 ): DocComment | undefined {
 	const lines: string[] = []
+	let hasHeader = false
 	let next = siblings[index]
 	for (let i = index - 1; i >= 0; i--) {
 		const node = siblings[i]
 		if (!core.CommentNode.is(node) || node.prefix !== '#') {
-			return undefined
+			break
 		}
 		const gap = text.slice(node.range.end, next.range.start)
-		if (gap.split('\n').length > 2) {
-			return undefined
+		const isHeader = node.comment.startsWith('>')
+		if (gap.split('\n').length > 2 || (hasHeader && !isHeader)) {
+			break
 		}
 		lines.unshift(node.comment)
-		if (node.comment.startsWith('>')) {
-			return parseDocComment(lines)
-		}
+		hasHeader ||= isHeader
 		next = node
 	}
-	return undefined
+	return hasHeader ? parseDocComment(lines) : undefined
 }
 
-/** Parses comment lines with their `#` stripped, the first starting with `>`. */
+/** Parses comment lines with their `#` stripped, the leading ones starting with `>`. */
 export function parseDocComment(lines: readonly string[]): DocComment {
 	const doc: DocComment = { text: '', args: [], params: [], within: [] }
 	const text: string[] = []
-	for (const [i, raw] of lines.entries()) {
-		const line = i === 0 ? raw.slice(1).trim() : raw
+	let inHeader = true
+	for (const raw of lines) {
+		inHeader &&= raw.startsWith('>')
+		const line = inHeader ? raw.slice(1).trim() : raw
 		const tag = /^@(\w+)\s*(.*)$/.exec(line)
 		switch (tag?.[1]) {
 			case 'arg':
@@ -101,10 +106,10 @@ function parseEntry(text: string): DocEntry | undefined {
 export function renderDocComment(doc: DocComment): string {
 	const parts: string[] = []
 	if (doc.deprecated !== undefined) {
-		parts.push(`**Deprecated**${doc.deprecated ? `: ${doc.deprecated}` : ''}`)
+		parts.push(`**Deprecated**${doc.deprecated ? `: ${escapeHtml(doc.deprecated)}` : ''}`)
 	}
 	if (doc.text) {
-		parts.push(doc.text)
+		parts.push(escapeHtml(doc.text))
 	}
 	for (const [title, entries] of [['Arguments', doc.args], ['Parameters', doc.params]] as const) {
 		if (entries.length > 0) {
@@ -118,7 +123,18 @@ export function renderDocComment(doc: DocComment): string {
 }
 
 function renderEntry({ name, type, desc }: DocEntry): string {
-	return `- \`${name}\`${type ? `: \`${type}\`` : ''}${desc ? ` — ${desc}` : ''}`
+	return `- \`${name}\`${type ? `: \`${type}\`` : ''}${desc ? ` — ${escapeHtml(desc)}` : ''}`
+}
+
+/**
+ * Escapes `<` outside code spans, so placeholders like `<step>` aren't stripped as HTML tags by
+ * Markdown renderers.
+ */
+export function escapeHtml(markdown: string): string {
+	return markdown
+		.split(/(`+[^`]*?`+)/)
+		.map((part, i) => (i % 2 === 1 ? part : part.replaceAll('<', '\\<')))
+		.join('')
 }
 
 /** A template param's `{Type}`: from the `with` overload's doc, else the template's. */

@@ -1,5 +1,9 @@
 import { compoundKeys } from '@spyglassmc/java-edition/lib/mcbuild/checker/index.js'
-import { parseDocComment, renderDocComment } from '@spyglassmc/java-edition/lib/mcbuild/doc.js'
+import {
+	escapeHtml,
+	parseDocComment,
+	renderDocComment,
+} from '@spyglassmc/java-edition/lib/mcbuild/doc.js'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
@@ -27,6 +31,11 @@ describe('mcbuild parseDocComment()', () => {
 		})
 	})
 
+	it('joins consecutive `#>` lines into the text', () => {
+		const doc = parseDocComment(['> Binary searches', '> floored to <step>', 'Costs a bit.'])
+		assert.equal(doc.text, 'Binary searches\nfloored to <step>\nCosts a bit.')
+	})
+
 	it('allows a bare @deprecated and an empty title', () => {
 		const doc = parseDocComment(['>', '@deprecated'])
 		assert.equal(doc.text, '')
@@ -46,6 +55,15 @@ describe('mcbuild renderDocComment()', () => {
 			renderDocComment(doc),
 			'**Deprecated**\n\nShows a message\n\n**Arguments**\n- `message`: `TextComponent` — Text to show'
 				+ '\n\n**Within**: `./queue/*`',
+		)
+	})
+})
+
+describe('mcbuild escapeHtml()', () => {
+	it('escapes `<` outside code spans', () => {
+		assert.equal(
+			escapeHtml('floored to <step>, `<%x%>` and ``a<b``'),
+			'floored to \\<step>, `<%x%>` and ``a<b``',
 		)
 	})
 })

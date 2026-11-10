@@ -695,6 +695,22 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			}
 		})
 
+		it('keeps every `#>` line and `<placeholders>` on template hover', async () => {
+			const { project, service, doc, node, offset } = await openAt(
+				'import ./t.mcbt\nfunction t {\n\tsea|rch a 0 10 1\n}\n',
+				{
+					'/root/src/t.mcbt': '#> Binary searches <field>\n#> floored to <step>\n'
+						+ 'template search {\n\twith field:word min:int max:int step:int {\n\t}\n}\n',
+				},
+			)
+			try {
+				const hover = service.getHover(node, doc, offset)?.markdown ?? ''
+				assert.match(hover, /Binary searches \\<field>\nfloored to \\<step>/)
+			} finally {
+				await project.close()
+			}
+		})
+
 		it('checks macro argument values against @arg types', async () => {
 			const libUri = `${ProjectRoot}src/lib.mcb`
 			const typed = '#> Shows a message\n# @arg msg {component} Text\n# @arg who {entity}\n'

@@ -5,7 +5,7 @@ import type { TemplateParamData } from './binder/index.js'
 import { getTemplateData, TEMPLATE_CATEGORY } from './binder/index.js'
 import { embeddedCommandAt } from './completer/index.js'
 import type { DocComment } from './doc.js'
-import { paramType } from './doc.js'
+import { escapeHtml, paramType } from './doc.js'
 import { EntryNode } from './node/index.js'
 
 /** Vanilla command signature help for commands nested in mc-build bodies. */
@@ -54,7 +54,7 @@ export const templateSignatureHelp: core.SignatureHelpProvider<core.FileNode<cor
 		}
 		return {
 			label,
-			documentation: doc?.text || data.doc?.text || undefined,
+			documentation: escapeHtml(doc?.text || data.doc?.text || '') || undefined,
 			parameters,
 			activeParameter: activeParam(params, index),
 		}
@@ -72,7 +72,7 @@ function paramDocs(
 	const desc = overloadDoc?.params.find((p) => p.name === name)?.desc
 		|| templateDoc?.params.find((p) => p.name === name)?.desc
 	const type = paramType(name, overloadDoc, templateDoc)
-	return [type && `\`${type}\``, desc].filter(Boolean).join(' — ') || undefined
+	return [type && `\`${type}\``, desc && escapeHtml(desc)].filter(Boolean).join(' — ') || undefined
 }
 
 /** The param the `index`th word goes to: `block` params take no word, `raw` takes the rest. */

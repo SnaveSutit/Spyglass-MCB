@@ -63,8 +63,15 @@ const command: core.Checker<CommandStatementNode> = async (node, ctx) => {
 		isTemplate = true
 	}
 
-	// This checker stops the dispatcher descending, so check children by hand.
-	if (!isTemplate) {
+	if (!isTemplate && node.tld) {
+		const end = node.trailing?.range.start ?? node.range.end
+		const text = ctx.doc.getText().slice(node.range.start, end).trim()
+		ctx.err.report(
+			localize('mcbuild.parser.unexpected-token', text),
+			core.Range.create(node.range.start, node.range.start + text.length),
+		)
+	} else if (!isTemplate) {
+		// This checker stops the dispatcher descending, so check children by hand.
 		for (const e of node.deferredErrors ?? []) {
 			ctx.err.report(e.message, e.range, e.severity, e.info)
 		}
@@ -121,6 +128,21 @@ function checkTemplateArgs(
 	if (!data || data.overloads.length === 0) {
 		return
 	}
+	// mc-build keeps `tld with` overloads apart: top-level calls only see those.
+	const overloads = data.overloads.filter((o) => !!o.tld === !!node.tld)
+	if (overloads.length === 0) {
+		ctx.err.report(
+			localize(
+				node.tld
+					? 'mcbuild.checker.template.no-tld-overload'
+					: 'mcbuild.checker.template.tld-only',
+				localeQuote(word.name),
+			),
+			node.range,
+			core.ErrorSeverity.Warning,
+		)
+		return
+	}
 
 	const argsEnd = node.trailing ? node.trailing.range.start : node.range.end
 	const text = ctx.doc.getText().slice(word.range.end, argsEnd)
@@ -134,7 +156,7 @@ function checkTemplateArgs(
 	})
 	const hasBlock = !!node.trailing
 
-	for (const overload of data.overloads) {
+	for (const overload of overloads) {
 		const matched = matchOverload(overload.params, args, hasBlock, ctx)
 		if (matched) {
 			checkParamTypes(overload, data.doc, matched, ctx)
@@ -146,7 +168,7 @@ function checkTemplateArgs(
 		localize(
 			'mcbuild.checker.template.no-overload',
 			word.name,
-			data.overloads.map((o) => describeParams(o.params) || '(no arguments)').join(' | '),
+			overloads.map((o) => describeParams(o.params) || '(no arguments)').join(' | '),
 		),
 		node.range,
 		core.ErrorSeverity.Warning,

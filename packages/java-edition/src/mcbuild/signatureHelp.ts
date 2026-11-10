@@ -30,7 +30,9 @@ export const templateSignatureHelp: core.SignatureHelpProvider<core.FileNode<cor
 	}
 	const call = templateCallAt(file, ctx)
 	const data = getTemplateData(call?.symbol as core.Symbol | undefined)
-	if (!call || !data || data.overloads.length === 0) {
+	const tld = !!(call as { tld?: boolean } | undefined)?.tld
+	const overloads = data?.overloads.filter((o) => !!o.tld === tld) ?? []
+	if (!call || !data || overloads.length === 0) {
 		return undefined
 	}
 	const typed = ctx.doc.getText().slice(call.range.start, ctx.offset)
@@ -40,7 +42,7 @@ export const templateSignatureHelp: core.SignatureHelpProvider<core.FileNode<cor
 	}
 	const args = [...typed.slice(word[0].length).matchAll(/<%[^]*?%>|\S+/g)]
 	const index = /\s$/.test(typed) ? args.length : Math.max(args.length - 1, 0)
-	const signatures = data.overloads.map(({ params, doc }): core.SignatureInfo => {
+	const signatures = overloads.map(({ params, doc }): core.SignatureInfo => {
 		let label = word[1]
 		const parameters: core.ParameterInfo[] = []
 		for (const param of params) {
@@ -59,7 +61,7 @@ export const templateSignatureHelp: core.SignatureHelpProvider<core.FileNode<cor
 			activeParameter: activeParam(params, index),
 		}
 	})
-	const fitting = data.overloads.findIndex(({ params }) => activeParam(params, index) >= 0)
+	const fitting = overloads.findIndex(({ params }) => activeParam(params, index) >= 0)
 	return { signatures, activeSignature: Math.max(fitting, 0) }
 }
 

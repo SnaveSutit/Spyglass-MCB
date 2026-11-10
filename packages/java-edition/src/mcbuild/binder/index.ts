@@ -30,6 +30,8 @@ export interface TemplateParamData {
 
 export interface TemplateOverloadData {
 	params: TemplateParamData[]
+	/** A `tld with` overload, for top-level calls only. */
+	tld?: true
 	/** The `#>` block above this `with`. */
 	doc?: DocComment
 }
@@ -309,6 +311,7 @@ function bindTemplate(
 			const doc = docCommentAbove(node.children, i, ctx.doc.getText())
 			overloads.push({
 				params: child.params.map((p) => ({ name: p.name.value, kind: p.kind })),
+				...(child.tld ? { tld: true } : {}),
 				...(doc ? { doc } : {}),
 			})
 		}
@@ -332,7 +335,9 @@ function templateDesc(
 	overloads: readonly TemplateOverloadData[],
 	doc: DocComment | undefined,
 ): string {
-	const calls = overloads.map((o) => `${name} ${describeParams(o.params)}`.trimEnd())
+	const calls = overloads.map((o) =>
+		`${name} ${describeParams(o.params)}`.trimEnd() + (o.tld ? '  # top level' : '')
+	)
 	const parts = [`\`\`\`mc-build\n${calls.join('\n')}\n\`\`\``]
 	if (doc) {
 		parts.push(renderDocComment(doc))

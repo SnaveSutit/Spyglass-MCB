@@ -142,6 +142,8 @@ export interface TemplateArgNode extends core.AstNode {
 /** One `with [params] { }` overload of a `template`. */
 export interface TemplateOverloadNode extends core.AstNode {
 	type: 'mcbuild:template_overload'
+	/** A `tld with` overload: called at the top level of a `.mcb` file, its body holds top-level statements. */
+	tld?: boolean
 	params: TemplateArgNode[]
 	body?: BodyNode
 	children: core.AstNode[]
@@ -213,6 +215,8 @@ export interface CommandStatementNode extends core.AstNode {
 	interpolation?: (IdentifierNode | JsNode)[]
 	/** Same-line `{ }` block argument of a template call. */
 	trailing?: BlockNode
+	/** A top-level line, which can only be a call to a `tld with` overload. */
+	tld?: boolean
 	/** Command errors the checker reports only if this isn't a template call. Non-enumerable. */
 	deferredErrors?: readonly core.LanguageError[]
 	children: core.AstNode[]

@@ -373,7 +373,44 @@ class ParseState {
 				return this.readJsonFile(token, kind, `${kind} <name> <value>`)
 			}
 		}
-		return this.unexpected(token)
+		return this.tldTemplateCall(token)
+	}
+
+	/** Anything else is a call to a `tld with` overload; the checker reports it if it isn't one. */
+	private tldTemplateCall(token: McbToken): CommandStatementNode {
+		const node: CommandStatementNode = {
+			type: 'mcbuild:command',
+			range: token.range,
+			tld: true,
+			children: [],
+		}
+		if (token.value.includes('<%')) {
+			node.interpolation = splitInterpolation(token, this.ctx)
+			node.children.push(...node.interpolation)
+		}
+		this.trailingBlock(node)
+		return node
+	}
+
+	/** A same-line `{ }` after a template call: its block argument. */
+	private trailingBlock(cmd: CommandStatementNode): void {
+		const next = this.reader.peek()
+		if (next?.type !== 'bracket_open' || !this.sameLine(cmd.range.end, next.range.start)) {
+			return
+		}
+		const block: BlockNode = {
+			type: 'mcbuild:block',
+			range: next.range,
+			children: [],
+		}
+		block.body = this.block((body) => this.innerParse(body))
+		if (block.body) {
+			block.children.push(block.body)
+			block.range = block.body.range
+		}
+		cmd.trailing = block
+		cmd.children.push(block)
+		cmd.range = core.Range.span(cmd.range, block.range)
 	}
 
 	private readFunction(token: McbToken): FunctionDefinitionNode {
@@ -532,7 +569,11 @@ class ParseState {
 		}
 		if (value === 'with' || value.startsWith('with ')) {
 			this.reader.skip()
-			return this.templateOverload(token)
+			return this.templateOverload(token, false)
+		}
+		if (value === 'tld with' || value.startsWith('tld with ')) {
+			this.reader.skip()
+			return this.templateOverload(token, true)
 		}
 		if (value.startsWith('#') || value.startsWith('\\#')) {
 			this.reader.skip()
@@ -542,14 +583,17 @@ class ParseState {
 		return this.unexpected(token)
 	}
 
-	private templateOverload(token: McbToken): TemplateOverloadNode {
+	private templateOverload(token: McbToken, tld: boolean): TemplateOverloadNode {
 		const node: TemplateOverloadNode = {
 			type: 'mcbuild:template_overload',
 			range: token.range,
 			params: [],
 			children: [],
 		}
-		for (const word of wordsOf(token, 'with'.length)) {
+		if (tld) {
+			node.tld = true
+		}
+		for (const word of wordsOf(token, (tld ? 'tld with' : 'with').length)) {
 			const colon = word.text.indexOf(':')
 			let arg: TemplateArgNode
 			if (colon === -1) {
@@ -582,7 +626,16 @@ class ParseState {
 			node.params.push(arg)
 			node.children.push(arg)
 		}
-		node.body = this.block((body) => this.innerParse(body), false)
+		node.body = this.block((body) => {
+			if (!tld) {
+				this.innerParse(body)
+				return
+			}
+			const child = this.parseTld()
+			if (child) {
+				body.push(child)
+			}
+		}, false)
 		if (node.body) {
 			node.children.push(node.body)
 			node.range = core.Range.span(token.range, node.body.range)
@@ -695,27 +748,9 @@ class ParseState {
 			return
 		}
 		// A command or a template call; the checker decides which, so defer
-		// command errors. A same-line `{ }` is a template block argument.
+		// command errors.
 		const cmd = this.command(shifted, macro, true)
-		const next = this.reader.peek()
-		if (
-			next?.type === 'bracket_open'
-			&& this.sameLine(cmd.range.end, next.range.start)
-		) {
-			const block: BlockNode = {
-				type: 'mcbuild:block',
-				range: next.range,
-				children: [],
-			}
-			block.body = this.block((body) => this.innerParse(body))
-			if (block.body) {
-				block.children.push(block.body)
-				block.range = block.body.range
-			}
-			cmd.trailing = block
-			cmd.children.push(block)
-			cmd.range = core.Range.span(cmd.range, block.range)
-		}
+		this.trailingBlock(cmd)
 		out.push(cmd)
 	}
 

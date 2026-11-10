@@ -221,6 +221,55 @@ describe('mcbuild integration (real Project pipeline)', () => {
 		}
 	})
 
+	it('matches top-level calls against `tld with` overloads only', async () => {
+		const mainUri = `${ProjectRoot}src/main.mcb`
+		const { project, errors } = await setup({
+			'/root/src/main.mcb': 'import ./t.mcbt\n'
+				+ 'counter kills\n'
+				+ 'make_function greet {\n\tsay hello\n}\n'
+				+ 'REPEAT([1]) as i {\n\tcounter loop_<%i%>\n}\n'
+				+ 'say_it\n'
+				+ 'nonsense here\n'
+				+ 'function f {\n\tcounter kills\n\tsay_it\n\tgen\n}\n',
+			'/root/src/t.mcbt': 'template counter {\n'
+				+ '\ttld with name:word {\n\t\tfunction <%name%>_inc {\n\t\t\tsay hi\n\t\t}\n'
+				+ '\t\tdamage_type <%name%> { scaling: never }\n\t}\n'
+				+ '\twith name:word {\n\t\tfunction ./<%name%>_inc\n\t}\n}\n'
+				+ 'template make_function {\n\ttld with name:word body:block {\n\t\tfunction <%name%> {\n\t\t\t<%embed(body)%>\n\t\t}\n\t}\n}\n'
+				+ 'template say_it {\n\twith {\n\t\tsay hi\n\t}\n}\n'
+				+ 'template gen {\n\ttld with {\n\t}\n}\n',
+		})
+		try {
+			await project.analyzeProject()
+			assert.deepEqual(messagesFor(errors, `${ProjectRoot}src/t.mcbt`), [])
+			assert.deepEqual(messagesFor(errors, mainUri), [
+				"Template “say_it” has no “tld with” overload, so it can't be called at the top level",
+				'Unexpected token nonsense here',
+				'Template “gen” only has “tld with” overloads, so it can only be called at the top level of a .mcb file',
+			])
+		} finally {
+			await project.close()
+		}
+	})
+
+	it('offers only `tld with` signatures and hover at the top level', async () => {
+		const { project, service, doc, node, offset } = await openAt(
+			'import ./t.mcbt\ncounter |\n',
+			{
+				'/root/src/t.mcbt': 'template counter {\n\ttld with name:word {\n\t}\n'
+					+ '\twith a:int b:int {\n\t}\n}\n',
+			},
+		)
+		try {
+			const help = service.getSignatureHelp(node, doc, offset)
+			assert.deepEqual(help?.signatures.map((s) => s.label), ['counter name:word'])
+			const hover = service.getHover(node, doc, offset - 3)?.markdown ?? ''
+			assert.match(hover, /counter name:word {2}# top level\ncounter a:int b:int/)
+		} finally {
+			await project.close()
+		}
+	})
+
 	it('type-checks template arguments through the pipeline', async () => {
 		const mainUri = `${ProjectRoot}src/main.mcb`
 		const { project, errors } = await setup({

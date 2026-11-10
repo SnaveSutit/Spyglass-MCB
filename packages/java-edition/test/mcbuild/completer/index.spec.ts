@@ -135,7 +135,39 @@ describe('mc-build completer', () => {
 
 	it('offers with / load / tick inside a template', () => {
 		const labels = completeAt('template t {\n\t|\n}', 'file:///pack/src/t.mcbt')
-		assert.deepEqual(labels.sort(), ['load', 'tick', 'with'])
+		assert.deepEqual(labels.sort(), ['load', 'tick', 'tld with', 'with'])
+	})
+
+	it('offers templates by where they can be called', () => {
+		const lib = {
+			'file:///pack/src/t.mcbt': 'template gen {\n\ttld with name:word {\n\t}\n}\n'
+				+ 'template say_it {\n\twith {\n\t\tsay hi\n\t}\n}\n',
+		}
+		const top = completeAt('import ./t.mcbt\n|', 'file:///pack/src/main.mcb', lib)
+		assert.ok(top.includes('gen') && !top.includes('say_it'), JSON.stringify(top))
+		const inDir = completeAt(
+			'import ./t.mcbt\ndir d {\n\tREPEAT(x) as i {\n\t\t|\n\t}\n}',
+			'file:///pack/src/main.mcb',
+			lib,
+		)
+		assert.ok(inDir.includes('gen') && inDir.includes('function'), JSON.stringify(inDir))
+		const inFunction = completeAt(
+			'import ./t.mcbt\nfunction f {\n\t|\n}',
+			'file:///pack/src/main.mcb',
+			lib,
+		)
+		assert.ok(
+			inFunction.includes('say_it') && !inFunction.includes('gen'),
+			JSON.stringify(inFunction),
+		)
+	})
+
+	it('offers top-level keywords inside a `tld with` body', () => {
+		const labels = completeAt(
+			'template t {\n\ttld with {\n\t\t|\n\t}\n}',
+			'file:///pack/src/t.mcbt',
+		)
+		assert.ok(labels.includes('function') && labels.includes('json'), JSON.stringify(labels))
 	})
 
 	it('offers reference prefixes and function ids after `function `', () => {

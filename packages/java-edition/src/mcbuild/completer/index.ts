@@ -1,7 +1,7 @@
 import * as core from '@spyglassmc/core'
 import { CompletionItem, CompletionKind } from '@spyglassmc/core'
 import { CommandNode } from '@spyglassmc/mcfunction'
-import { fileBase, FUNCTION_CATEGORY, TEMPLATE_CATEGORY } from '../binder/index.js'
+import { fileBase, FUNCTION_CATEGORY, getTemplateData, TEMPLATE_CATEGORY } from '../binder/index.js'
 import { importEdit, isTemplateInScope, relativeSpec } from '../imports.js'
 import type { CompileTimeLoopNode } from '../node/index.js'
 import {
@@ -29,7 +29,7 @@ const MCB_TLD_KEYWORDS = [
 	'REPEAT',
 ]
 const MCBT_TLD_KEYWORDS = ['template', 'import']
-const TEMPLATE_BODY_KEYWORDS = ['with', 'load', 'tick']
+const TEMPLATE_BODY_KEYWORDS = ['with', 'tld with', 'load', 'tick']
 const STATEMENT_KEYWORDS = [
 	'function',
 	'schedule',
@@ -94,14 +94,23 @@ function containerKind(
 			case 'mcbuild:schedule_block':
 				return inBody(node, offset) ? 'statement' : 'unknown'
 			case 'mcbuild:template_overload':
+				return !(node as TemplateOverloadNode).tld
+					? 'statement'
+					: inBody(node, offset)
+					? 'mcb-tld'
+					: 'unknown'
+			case 'mcbuild:compiletime_if':
+			case 'mcbuild:compiletime_loop':
+			case 'mcbuild:body':
+				// Holds whatever the enclosing container does.
+				continue
+			case 'mcbuild:json_file':
+				return 'unknown'
 			case 'mcbuild:block':
 			case 'mcbuild:tick_block':
 			case 'mcbuild:load_block':
 			case 'mcbuild:execute_block':
 			case 'mcbuild:return_run':
-			case 'mcbuild:compiletime_if':
-			case 'mcbuild:compiletime_loop':
-			case 'mcbuild:body':
 				return 'statement'
 			case 'mcbuild:template_definition':
 				return 'template-body'
@@ -125,14 +134,23 @@ function declaredNames(ctx: core.CompleterContext, category: string): string[] {
 	)
 }
 
-/** Every template; ones not in scope add the import of their `.mcbt` when picked. */
+/**
+ * Every template with an overload callable here (`tld with` ones at the top level); ones
+ * not in scope add the import of their `.mcbt` when picked.
+ */
 function templateItems(
 	ctx: core.CompleterContext,
 	range: core.RangeLike,
 	at: core.AstNode,
+	tld: boolean,
 ): CompletionItem[] {
-	return declaredNames(ctx, TEMPLATE_CATEGORY).map((name) => {
-		const definitions = ctx.symbols.query(ctx.doc, TEMPLATE_CATEGORY, name).symbol?.definition
+	return declaredNames(ctx, TEMPLATE_CATEGORY).flatMap((name) => {
+		const symbol = ctx.symbols.query(ctx.doc, TEMPLATE_CATEGORY, name).symbol
+		const overloads = getTemplateData(symbol)?.overloads ?? []
+		if (overloads.length > 0 ? !overloads.some((o) => !!o.tld === tld) : tld) {
+			return []
+		}
+		const definitions = symbol?.definition
 		const file = definitions?.find((l) => l.uri.endsWith('.mcbt'))?.uri
 		if (isTemplateInScope(definitions, at, ctx) || !file) {
 			return CompletionItem.create(name, range, {
@@ -501,7 +519,7 @@ const complete = (
 			case 'statement':
 				return [
 					...keywordItems(STATEMENT_KEYWORDS, wordRange),
-					...templateItems(ctx, wordRange, path[path.length - 1] ?? node),
+					...templateItems(ctx, wordRange, path[path.length - 1] ?? node, false),
 					...commandItems(node, ctx, deps),
 				]
 			case 'template-body':
@@ -509,7 +527,10 @@ const complete = (
 			case 'mcbt-tld':
 				return keywordItems(MCBT_TLD_KEYWORDS, wordRange)
 			case 'mcb-tld':
-				return keywordItems(MCB_TLD_KEYWORDS, wordRange)
+				return [
+					...keywordItems(MCB_TLD_KEYWORDS, wordRange),
+					...templateItems(ctx, wordRange, path[path.length - 1] ?? node, true),
+				]
 		}
 	}
 

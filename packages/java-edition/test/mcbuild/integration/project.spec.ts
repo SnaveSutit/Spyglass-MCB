@@ -1237,6 +1237,28 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			])
 		})
 
+		it('type-checks relaxed JSON, skipping `<% %>` and IF/ELSE duplicates', async () => {
+			const uri = `${ProjectRoot}src/a.mcb`
+			const { project, errors } = await setup({
+				'/root/schema.mcdoc': schema,
+				'/root/src/a.mcb': 'advancement a {\n'
+					+ '\tcriteria: { t: { trigger: tick } }\n'
+					+ '\tIF (x) {\n\t\tparent: "a"\n\t} ELSE {\n\t\tparent: "b"\n\t}\n'
+					+ '\trewards: { experience: <% 5 %> }\n'
+					+ '\t<%k%>: 1\n'
+					+ '\tbogus: 1\n'
+					+ '}\n',
+			})
+			try {
+				await project.analyzeProject()
+				const messages = messagesFor(errors, uri)
+				assert.equal(messages.length, 1, JSON.stringify(messages))
+				assert.match(messages[0], /bogus/)
+			} finally {
+				await project.close()
+			}
+		})
+
 		it('completes typed JSON values', async () => {
 			assert.deepEqual(
 				await completeJson('\t"criteria": {\n\t\t"t": {\n\t\t\t"trigger": |\n\t\t}\n\t}'),

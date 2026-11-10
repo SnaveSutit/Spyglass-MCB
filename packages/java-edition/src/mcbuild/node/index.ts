@@ -1,4 +1,6 @@
 import type * as core from '@spyglassmc/core'
+import type { JsonNode } from '@spyglassmc/json'
+import type * as mcdoc from '@spyglassmc/mcdoc'
 import type { CommandNode, MacroNode } from '@spyglassmc/mcfunction'
 
 /** A bare name or keyword (function, template, param, schedule mode, ...). Never quoted. */
@@ -412,6 +414,27 @@ export namespace JsonFileNode {
 	export function is(node: core.AstNode | undefined): node is JsonFileNode {
 		return (node as JsonFileNode | undefined)?.type === 'mcbuild:json_file'
 	}
+}
+
+/** A data file's JSON value, read with mc-build's relaxed syntax. */
+export interface JsonValueNode extends core.AstNode {
+	type: 'mcbuild:json_value'
+	value?: JsonNode
+	/** The mcdoc type `value` is checked against, when the file's type is known. */
+	targetType?: mcdoc.McdocType
+	/** `value`, then the JavaScript of each IF/ELSE/REPEAT line. */
+	children: core.AstNode[]
+}
+export namespace JsonValueNode {
+	export function is(node: core.AstNode | undefined): node is JsonValueNode {
+		return (node as JsonValueNode | undefined)?.type === 'mcbuild:json_value'
+	}
+}
+
+/** A JSON key, value or entry built by `<% %>` at compile time; left unchecked. */
+export interface JsonDynamicNode extends core.AstNode {
+	type: 'mcbuild:json_dynamic'
+	children: JsNode[]
 }
 
 export interface TagEntryNode extends core.AstNode {

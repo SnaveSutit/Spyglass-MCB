@@ -43,7 +43,7 @@ import type { CommandBridgeOptions } from './command.js'
 import { parseCommandStatement, splitInterpolation, tokenSource } from './command.js'
 import { parseEq } from './eq.js'
 import { parseJs } from './js.js'
-import { jsonBodyExtent, jsonFileType, parseJsonBody } from './json.js'
+import { jsonFileType, readJsonValue } from './json.js'
 import { sliceToken, syntheticPrefixed, TokenReader } from './reader.js'
 
 export type McbParserOptions = CommandBridgeOptions
@@ -1324,47 +1324,22 @@ class ParseState {
 		// Like mc-build, find the body in the source text instead of balancing tokens.
 		const bodyStart = id.range.end
 			+ /^[^\S\n]*/.exec(this.fullText.slice(id.range.end))![0].length
-		const opener = this.fullText[bodyStart]
-		const type = jsonFileType(kind, registry?.value)
-		if (opener !== '{' && opener !== '[') {
-			// Any other value, like `<% %>`, is one line long.
-			const lineEnd = this.fullText.indexOf('\n', bodyStart)
-			const end = bodyStart
-				+ this.fullText.slice(bodyStart, lineEnd === -1 ? undefined : lineEnd).trimEnd().length
-			this.skipTokensBefore(end)
-			if (end === bodyStart) {
-				if (id.value) {
-					this.report(localize('mcbuild.parser.json.expected-value'), token.range)
-				}
-				return node
+		if (/^\s*(\n|$)/.test(this.fullText.slice(bodyStart))) {
+			if (id.value) {
+				this.report(localize('mcbuild.parser.json.expected-value'), token.range)
 			}
-			const body = parseJsonBody(
-				this.fullText.slice(bodyStart, end),
-				core.Range.create(bodyStart, end),
-				type,
-				this.ctx,
-			)
-			node.entries = [body]
-			node.children.push(body)
-			node.range = core.Range.span(token.range, body.range)
 			return node
 		}
-		const extent = jsonBodyExtent(this.fullText, bodyStart)
-		if (!extent) {
-			this.skipTokensBefore(this.fullText.length)
-			this.report(localize('mcbuild.parser.unexpected-eof'), this.eofRange())
-			return node
-		}
-		this.skipTokensBefore(extent.end)
-		const body = parseJsonBody(
-			extent.text,
-			core.Range.create(bodyStart, extent.end),
-			type,
+		const { node: body, end } = readJsonValue(
+			this.fullText,
+			bodyStart,
+			jsonFileType(kind, registry?.value),
 			this.ctx,
 		)
+		this.skipTokensBefore(end)
 		node.entries = [body]
 		node.children.push(body)
-		node.range = core.Range.span(token.range, core.Range.create(extent.end))
+		node.range = core.Range.span(token.range, body.range)
 		return node
 	}
 

@@ -70,7 +70,7 @@ describe('mcbuild parser — JSON data files', () => {
 
 	it('reports an unclosed body at the end of the file', () => {
 		const { errors } = bodyOf('predicate p {\n\t"type": "x"\n')
-		assert.deepEqual(errors, ['Unexpected end of file'])
+		assert.deepEqual(errors, ['Expected “}” to close this'])
 	})
 
 	it('reads the 4.3 registry keywords', () => {
@@ -137,5 +137,79 @@ describe('mcbuild parser — JSON data files', () => {
 			['<% "a,b" %>', false],
 		])
 		assert.equal(node.children[1].type, 'mcbuild:function_definition')
+	})
+
+	describe('relaxed JSON', () => {
+		/** The keys of the body's root object, `undefined` for dynamic ones. */
+		function keysOf(content: string) {
+			const { node, errors } = parse(content)
+			const value = (node.children[0] as JsonFileNode).entries[0] as {
+				value?: { children: { key?: { value: string } }[] }
+			}
+			return { errors, keys: value.value?.children.map((p) => p.key?.value) }
+		}
+
+		it('accepts unquoted keys and words, single quotes, comments and no commas', () => {
+			const { errors, keys } = keysOf(
+				"predicate p {\n\ttype: entity_properties // why\n\t'b': 'x' /* c */\n\tc: [1 2, true null]\n}\n",
+			)
+			assert.deepEqual(errors, [])
+			assert.deepEqual(keys, ['type', 'b', 'c'])
+		})
+
+		it('reports what mc-build rejects', () => {
+			const errorsOf = (body: string) => parse(`predicate p { ${body} }\n`).errors
+			assert.deepEqual(errorsOf('"a" 1'), [
+				'Expected “:” after the key',
+				'Expected a key; keys other than plain words must be quoted',
+			])
+			assert.deepEqual(errorsOf('a: b:c'), [
+				"Unquoted strings can't contain “:”; wrap the value in quotes",
+			])
+			assert.deepEqual(errorsOf('a: #minecraft:logs'), [
+				'Tag references must be quoted, like “"#minecraft:logs"”',
+			])
+			assert.deepEqual(errorsOf('a: 1,, b: 2'), ['Unexpected “,”'])
+			assert.deepEqual(errorsOf('a: 1x'), ['Invalid number'])
+		})
+
+		it('merges every IF/ELSE branch and REPEAT body into the object', () => {
+			const { errors, keys } = keysOf(
+				'json c config {\n\t"always": 1,\n\tIF (true) {\n\t\t"on": true\n\t} ELSE IF (false) {\n\t\t"maybe": 1\n\t}\n'
+					+ '\tELSE {\n\t\t"off": true\n\t}\n\tREPEAT([1, 2]) as n {\n\t\t"key_<%n%>": <%n%>,\n\t}\n\t"done": true\n}\n',
+			)
+			assert.deepEqual(errors, [])
+			assert.deepEqual(keys, ['always', 'on', 'maybe', 'off', undefined, 'done'])
+		})
+
+		it('warns on duplicate keys, but not between branches of one IF/ELSE', () => {
+			const { errors } = keysOf(
+				'json c f {\n\tIF (x) {\n\t\t"a": 1\n\t} ELSE {\n\t\t"a": 2\n\t}\n\t"b": 1\n\t"b": 2\n}\n',
+			)
+			assert.deepEqual(errors, ['Duplicate key “b”; the last value wins'])
+		})
+
+		it('treats `<% %>` keys, values and entries as dynamic', () => {
+			const { errors, keys } = keysOf(
+				'json c f {\n\t<% spread %>\n\ta: "x_<%y%>"\n\t<%k%>: 1\n}\n',
+			)
+			assert.deepEqual(errors, [])
+			assert.deepEqual(keys, [undefined, 'a', undefined])
+		})
+
+		it('reports JavaScript errors in conditions and values', () => {
+			const { errors } = parse('json c f {\n\tIF (1 +) {\n\t}\n\ta: <% ) %>\n}\n')
+			assert.equal(errors.length, 2, JSON.stringify(errors))
+		})
+
+		it('reports an unclosed block and text after its `}`', () => {
+			assert.deepEqual(parse('json c f {\n\tIF (x) {\n\t\ta: 1\n').errors, [
+				'Expected “}” to close this block',
+				'Expected “}” to close this',
+			])
+			assert.deepEqual(parse('json c f {\n\tREPEAT(x) as i {\n\t} oops {\n}\n').errors, [
+				'Unexpected “oops {” after “}”',
+			])
+		})
 	})
 })

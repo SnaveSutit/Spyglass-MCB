@@ -164,7 +164,8 @@ function delegate(path: core.AstNode[], ctx: core.CompleterContext): CompletionI
 /** The data file whose JSON body holds the cursor, where mc-build's line rules don't apply. */
 function jsonFileAt(path: core.AstNode[]): JsonFileNode | undefined {
 	const index = path.findIndex(JsonFileNode.is)
-	return index !== -1 && path[index + 1]?.type.startsWith('json:')
+	return index !== -1 && path[index + 1]?.type === 'mcbuild:json_value'
+			&& path[index + 2]?.type.startsWith('json:')
 		? path[index] as JsonFileNode
 		: undefined
 }

@@ -1,4 +1,5 @@
 import * as core from '@spyglassmc/core'
+import * as json from '@spyglassmc/json'
 import { localeQuote, localize } from '@spyglassmc/locales'
 import { CommandNode } from '@spyglassmc/mcfunction'
 import type * as acorn from 'acorn'
@@ -14,6 +15,7 @@ import type {
 	FunctionDefinitionNode,
 	ImportNode,
 	JsNode,
+	JsonValueNode,
 	ReferenceNode,
 	TemplateDefinitionNode,
 } from '../node/index.js'
@@ -525,7 +527,22 @@ function literalType(arg: acorn.Expression | acorn.SpreadElement): string | unde
 	}
 }
 
+/** mcdoc checks the JSON; the parser already warned about duplicate keys, across IF/ELSE branches. */
+const jsonValue: core.SyncChecker<JsonValueNode> = (node, ctx) => {
+	for (const child of node.children) {
+		if (node.value && node.targetType && child.range.start === node.value.range.start) {
+			json.checker.index(node.targetType, { discardDuplicateKeyErrors: true })(
+				child as json.JsonNode,
+				ctx,
+			)
+		} else {
+			core.checker.dispatchSync(child, ctx)
+		}
+	}
+}
+
 export function register(meta: core.MetaRegistry): void {
+	meta.registerChecker<JsonValueNode>('mcbuild:json_value', jsonValue)
 	meta.registerChecker<CommandStatementNode>('mcbuild:command', command)
 	meta.registerChecker<FunctionDefinitionNode>('mcbuild:function_definition', functionDefinition)
 	meta.registerChecker<FunctionCallNode>('mcbuild:function_call', functionCall)

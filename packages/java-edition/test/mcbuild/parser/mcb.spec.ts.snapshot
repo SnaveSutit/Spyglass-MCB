@@ -1831,10 +1831,20 @@ exports[`mcbuild parser (.mcb) > parse loot table file: 'loot_table my_loot {↓
             "value": "my_loot"
           },
           {
-            "type": "json:typed",
+            "type": "mcbuild:json_value",
             "range": {
               "start": 19,
               "end": 49
+            },
+            "targetType": {
+              "kind": "dispatcher",
+              "registry": "minecraft:resource",
+              "parallelIndices": [
+                {
+                  "kind": "static",
+                  "value": "loot_table"
+                }
+              ]
             },
             "children": [
               {
@@ -1848,7 +1858,7 @@ exports[`mcbuild parser (.mcb) > parse loot table file: 'loot_table my_loot {↓
                     "type": "pair",
                     "range": {
                       "start": 22,
-                      "end": 48
+                      "end": 47
                     },
                     "children": [
                       {
@@ -1926,17 +1936,7 @@ exports[`mcbuild parser (.mcb) > parse loot table file: 'loot_table my_loot {↓
                   "end": 48
                 }
               }
-            ],
-            "targetType": {
-              "kind": "dispatcher",
-              "registry": "minecraft:resource",
-              "parallelIndices": [
-                {
-                  "kind": "static",
-                  "value": "loot_table"
-                }
-              ]
-            }
+            ]
           }
         ]
       }

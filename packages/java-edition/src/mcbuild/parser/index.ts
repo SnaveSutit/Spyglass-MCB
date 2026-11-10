@@ -276,7 +276,9 @@ class ParseState {
 				out.push(this.unexpected(token))
 				continue
 			}
-			if (value.startsWith('#')) {
+			if (value.startsWith('\\#')) {
+				out.push(this.misplacedEscapedComment(token))
+			} else if (value.startsWith('#')) {
 				out.push(this.comment(token))
 			} else if (value.startsWith('template ')) {
 				out.push(this.readTemplate(token))
@@ -301,6 +303,9 @@ class ParseState {
 		}
 		const value = token.value
 
+		if (value.startsWith('\\#')) {
+			return this.misplacedEscapedComment(token)
+		}
 		if (value.startsWith('#')) {
 			return this.comment(token)
 		}
@@ -439,13 +444,19 @@ class ParseState {
 
 	private comment(token: McbToken): core.CommentNode {
 		const value = literalValue(token) ?? ''
-		const prefix = value.startsWith('###') ? '###' : '#'
+		const prefix = value.startsWith('###') ? '###' : value.startsWith('\\#') ? '\\#' : '#'
 		return {
 			type: 'comment',
 			range: token.range,
 			comment: value.slice(prefix.length).trim(),
 			prefix,
 		}
+	}
+
+	/** mc-build keeps `\#` comments in the output, so they only make sense inside functions. */
+	private misplacedEscapedComment(token: McbToken): core.CommentNode {
+		this.report(localize('mcbuild.parser.escaped-comment.scope'), token.range)
+		return this.comment(token)
 	}
 
 	// #endregion
@@ -494,7 +505,7 @@ class ParseState {
 			this.reader.skip()
 			return this.templateOverload(token)
 		}
-		if (value.startsWith('#')) {
+		if (value.startsWith('#') || value.startsWith('\\#')) {
 			this.reader.skip()
 			return this.comment(token)
 		}
@@ -593,7 +604,7 @@ class ParseState {
 		}
 		const shifted: McbToken = macro ? sliceToken(token, 1, token.value.length) : token
 
-		if (value.startsWith('#')) {
+		if (value.startsWith('#') || value.startsWith('\\#')) {
 			out.push(this.comment(token))
 			return
 		}

@@ -102,6 +102,7 @@
   "mcbuild.parser.eq.unexpected-char": "Unexpected character %0% in eq expression",
   "mcbuild.parser.eq.unexpected-token": "Unexpected token %0% in eq expression",
   "mcbuild.parser.eq.unmatched-paren": "Unmatched “(” in eq expression",
+  "mcbuild.parser.escaped-comment.scope": "Escaped comments (“\\#”) are only valid inside a function or template body",
   "mcbuild.parser.expected-block": "Expected a “{ … }” block",
   "mcbuild.parser.js.empty-expression": "Expected a JavaScript expression",
   "mcbuild.parser.js.parse-failed": "Failed to parse embedded JavaScript",

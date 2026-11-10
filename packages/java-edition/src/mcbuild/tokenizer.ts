@@ -185,7 +185,8 @@ export function tokenize(source: string): McbToken[] {
 			continue
 		}
 
-		if (line.length > 0 && line.charAt(0) === '#') {
+		// `#` and escaped `\#` comment lines skip brace processing.
+		if (line.startsWith('#') || line.startsWith('\\#')) {
 			const loc = buf.sliceLocation(0, line.length)
 			tokens.push({ type: 'literal', value: line, ...loc })
 			continue

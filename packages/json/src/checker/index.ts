@@ -13,6 +13,8 @@ export function register(meta: core.MetaRegistry): void {
 
 export interface JsonCheckerOptions {
 	discardDuplicateKeyErrors?: true
+	/** Returns `false` to drop an error, for languages that know more than the JSON shows. */
+	filterError?: (error: mcdoc.runtime.checker.McdocRuntimeError<JsonNode>) => boolean
 }
 
 export function index(
@@ -74,6 +76,9 @@ export function index(
 				},
 				reportError: err => {
 					if (err.kind === 'duplicate_key' && options?.discardDuplicateKeyErrors) {
+						return
+					}
+					if (options?.filterError?.(err) === false) {
 						return
 					}
 					mcdoc.runtime.checker.getDefaultErrorReporter(

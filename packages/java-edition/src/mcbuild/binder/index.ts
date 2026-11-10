@@ -1,7 +1,7 @@
 import * as core from '@spyglassmc/core'
 import type { DocComment } from '../doc.js'
 import { docCommentAbove, renderDocComment } from '../doc.js'
-import type { EntryNode, TemplateArgKind } from '../node/index.js'
+import type { EntryNode, ExecuteBlockNode, TemplateArgKind } from '../node/index.js'
 import {
 	ClockDefinitionNode,
 	DirectoryDefinitionNode,
@@ -201,8 +201,10 @@ function bindCallReferences(
 			enterReference(target, ctx, dirStack, base, frames)
 		}
 		const inner = GeneratedFrameTypes.has(n.type) ? [...frames, undefined] : frames
+		// An execute tail chains onto the same command, outside the block's frame.
+		const tailStart = (n as ExecuteBlockNode).tail?.range.start
 		for (const c of n.children ?? []) {
-			visit(c, inner)
+			visit(c, c.range.start === tailStart ? frames : inner)
 		}
 	}
 	visit(root, frames)

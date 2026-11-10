@@ -275,6 +275,8 @@ export interface ExecuteBlockNode extends core.AstNode {
 	body?: BodyNode
 	/** `else run { }` / `else <exec> run { }` */
 	continuations: (BlockNode | ExecuteBlockNode)[]
+	/** The chain after a condition block's `}`: `run say hi` in `execute if { } run say hi`. */
+	tail?: ExecuteBlockNode | ExecuteRunNode | CommandStatementNode
 	children: core.AstNode[]
 }
 export namespace ExecuteBlockNode {

@@ -97,7 +97,7 @@ describe('mc-build completer', () => {
 	it('completes command arguments after the first word', () => {
 		assert.deepEqual(
 			completeAt('function t {\n\texecute |\n}').sort(),
-			['as', 'at', 'if', 'run'],
+			['as', 'at', 'if', 'run', 'unless'],
 		)
 		assert.deepEqual(completeAt('function t {\n\tscoreboard |\n}').sort(), [
 			'objectives',

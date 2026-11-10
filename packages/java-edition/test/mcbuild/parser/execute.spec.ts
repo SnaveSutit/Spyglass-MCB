@@ -21,6 +21,10 @@ describe('mcbuild parser (execute … run)', () => {
 		'execute if score a b matches 1 run execute run say hi',
 		'execute if score a b matches 1 run {\n\t\tsay 1\n\t} else run {\n\t\tsay 2\n\t}',
 		'execute if score a b matches 1 run {\n\t\tsay 1\n\t} else if score a b matches 2 run {\n\t\tsay 2\n\t}',
+		'execute unless {\n\t\tsay 1\n\t} run say tail',
+		'execute if {\n\t\tsay 1\n\t} run {\n\t\tsay block tail\n\t}',
+		'execute if {\n\t\tsay 1\n\t} if {\n\t\tsay 2\n\t} as @a run say chained',
+		'execute if {\n\t\tsay 1\n\t}',
 	]
 	for (const body of clean) {
 		it(`no spurious error: ${JSON.stringify(body)}`, () => {
@@ -38,5 +42,23 @@ describe('mcbuild parser (execute … run)', () => {
 		assert.deepEqual(messages('execute if score a b matches 1 {\n\t\tsay hi\n\t}'), [
 			'Expected more arguments',
 		])
+	})
+
+	it('chains a tail after a condition block onto the execute', () => {
+		const node = testParser(
+			mcbParser(realArgument),
+			'function t {\n\texecute unless {\n\t\tsay 1\n\t} run say tail\n\tsay next\n}\n',
+			{ uri: 'file:///pack/data/p/t.mcb' },
+		).node as { children: { body: { children: { type: string; tail?: { type: string } }[] } }[] }
+		const statements = node.children[0].body.children
+		assert.deepEqual(statements.map((s) => s.type), ['mcbuild:execute_block', 'mcbuild:command'])
+		assert.equal(statements[0].tail?.type, 'mcbuild:execute_run')
+	})
+
+	it('still flags an error in the tail', () => {
+		assert.ok(
+			messages('execute unless {\n\t\tsay 1\n\t} if score @notaselector[bad=] run say hi').length
+				> 0,
+		)
 	})
 })

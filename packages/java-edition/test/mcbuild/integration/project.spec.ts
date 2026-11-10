@@ -415,7 +415,7 @@ describe('mcbuild integration (real Project pipeline)', () => {
 		const args = await completeInProject({
 			'src/main.mcb': 'function t {\n\texecute |\n}\n',
 		}, 'src/main.mcb')
-		assert.deepEqual(args.sort(), ['as', 'at', 'if', 'run'])
+		assert.deepEqual(args.sort(), ['as', 'at', 'if', 'run', 'unless'])
 
 		const inBlock = await completeInProject({
 			'src/main.mcb': 'function t {\n\texecute as @s run {\n\t\tscoreb|\n\t}\n}\n',

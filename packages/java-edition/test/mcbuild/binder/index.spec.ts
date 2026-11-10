@@ -140,6 +140,14 @@ describe('mcbuild binder', () => {
 		assert.equal(symbols.global[VANILLA_FUNCTION_CATEGORY]?.['main:loop']?.reference?.length, 2)
 	})
 
+	it("keeps an execute tail outside the condition block's `^N` frame", () => {
+		const symbols = bind(
+			'file:///pack/src/main.mcb',
+			'function loop {\n\texecute if {\n\t\tfunction ^1\n\t} run function ^0\n}',
+		)
+		assert.equal(symbols.global[VANILLA_FUNCTION_CATEGORY]?.['main:loop']?.reference?.length, 2)
+	})
+
 	it('defines `tag function` blocks under the file path and links `#` references', () => {
 		const symbols = bind(
 			'file:///pack/src/main.mcb',

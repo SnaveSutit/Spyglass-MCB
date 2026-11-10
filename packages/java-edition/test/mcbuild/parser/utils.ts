@@ -88,6 +88,17 @@ export const tree: mcf.RootTreeNode = {
 				if: {
 					type: 'literal',
 					children: {
+						function: {
+							type: 'literal',
+							children: {
+								name: {
+									type: 'argument',
+									parser: 'minecraft:function',
+									redirect: ['execute'],
+									executable: true,
+								},
+							},
+						},
 						score: {
 							type: 'literal',
 							children: {
@@ -124,6 +135,22 @@ export const tree: mcf.RootTreeNode = {
 											},
 										},
 									},
+								},
+							},
+						},
+					},
+				},
+				unless: {
+					type: 'literal',
+					children: {
+						function: {
+							type: 'literal',
+							children: {
+								name: {
+									type: 'argument',
+									parser: 'minecraft:function',
+									redirect: ['execute'],
+									executable: true,
 								},
 							},
 						},

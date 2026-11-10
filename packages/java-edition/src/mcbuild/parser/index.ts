@@ -4,6 +4,7 @@ import type {
 	BlockNode,
 	BodyNode,
 	ClockDefinitionNode,
+	CommandStatementNode,
 	CompileTimeIfNode,
 	CompileTimeLoopNode,
 	DirectoryDefinitionNode,
@@ -712,13 +713,13 @@ class ParseState {
 
 	/**
 	 * Reports deferred `execute … run` errors, minus the "Expected more arguments"
-	 * after a trailing `run` (mc-build fills it with the block's function).
+	 * after a trailing `run`, `if` or `unless` (mc-build fills it with the block's function).
 	 */
 	private replayExecuteErrors(
 		cmd: { deferredErrors?: readonly core.LanguageError[] },
 		token: McbToken,
 	): void {
-		const endsWithRun = /(^|\s)run$/.test(token.value.trimEnd())
+		const endsWithRun = /(^|\s)(run|if|unless)$/.test(token.value.trimEnd())
 		const eoc = localize('mcfunction.parser.eoc-unexpected')
 		for (const e of cmd.deferredErrors ?? []) {
 			if (endsWithRun && e.message === eoc) {
@@ -867,7 +868,10 @@ class ParseState {
 		return { time: { type: 'mcbuild:time', range }, mode }
 	}
 
-	private execute(token: McbToken, macro?: MacroPrefixNode): McbNode {
+	private execute(
+		token: McbToken,
+		macro?: MacroPrefixNode,
+	): ExecuteBlockNode | ExecuteRunNode | CommandStatementNode {
 		const match = EXECUTE_RUN.exec(token.value)
 		// Block form, unless the `{` belongs to an inline statement after `run`
 		// (`execute as @a run schedule 1t {`), like mc-build.
@@ -891,6 +895,7 @@ class ParseState {
 				node.range = core.Range.span(node.range, node.body.range)
 			}
 			this.parseExecuteContinuations(node)
+			this.parseExecuteTail(node)
 			return node
 		}
 
@@ -974,6 +979,24 @@ class ParseState {
 			}
 			break
 		}
+	}
+
+	/** `execute if { } run say hi`: mc-build chains text after the `}` onto the execute. */
+	private parseExecuteTail(node: ExecuteBlockNode): void {
+		const next = this.reader.peek()
+		if (
+			node.continuations.length > 0
+			|| !node.body
+			|| next?.type !== 'literal'
+			|| !this.sameLine(node.body.range.end, next.range.start)
+		) {
+			return
+		}
+		this.reader.skip()
+		const tail = this.execute(syntheticPrefixed('execute ', next.value, next.range))
+		node.tail = tail
+		node.children.push(tail)
+		node.range = core.Range.span(node.range, tail.range)
 	}
 
 	private returnRun(token: McbToken, macro?: MacroPrefixNode): ReturnRunNode {

@@ -36,6 +36,7 @@ import type {
 	TemplateOverloadNode,
 	TickBlockNode,
 } from '../node/index.js'
+import { JSON_REGISTRY_KEYWORDS } from '../node/index.js'
 import type { McbToken } from '../tokenizer.js'
 import { tokenize } from '../tokenizer.js'
 import type { CommandBridgeOptions } from './command.js'
@@ -46,19 +47,6 @@ import { jsonBodyExtent, jsonFileType, parseJsonBody } from './json.js'
 import { sliceToken, syntheticPrefixed, TokenReader } from './reader.js'
 
 export type McbParserOptions = CommandBridgeOptions
-
-const PLAIN_JSON_KINDS: Exclude<JsonFileKind, 'tag' | 'worldgen'>[] = [
-	'advancement',
-	'enchantment',
-	'item_modifier',
-	'loot_table',
-	'predicate',
-	'recipe',
-	'chat_type',
-	'damage_type',
-	'dimension',
-	'dimension_type',
-]
 
 export function entry(options: McbParserOptions): core.Parser<EntryNode> {
 	return (src, ctx) => {
@@ -221,6 +209,43 @@ const TEMPLATE_ARG_KINDS: readonly TemplateArgKind[] = [
 	'literal',
 ]
 
+/** The first `ch` at or after `from` that isn't inside a `<% %>` script, or -1. */
+function indexOutsideScripts(text: string, ch: string, from = 0, to = text.length): number {
+	let depth = 0
+	for (let i = from; i < to; i++) {
+		if (text.startsWith('<%', i)) {
+			depth++
+			i++
+		} else if (depth > 0 && text.startsWith('%>', i)) {
+			depth--
+			i++
+		} else if (depth === 0 && text[i] === ch) {
+			return i
+		}
+	}
+	return -1
+}
+
+/** `text.slice(from, to)` split on `ch` outside `<% %>` scripts, as offset spans. */
+function splitOutsideScripts(
+	text: string,
+	ch: string,
+	from: number,
+	to: number,
+): { start: number; end: number }[] {
+	const parts: { start: number; end: number }[] = []
+	let start = from
+	while (true) {
+		const idx = indexOutsideScripts(text, ch, start, to)
+		if (idx === -1) {
+			parts.push({ start, end: to })
+			return parts
+		}
+		parts.push({ start, end: idx })
+		start = idx + 1
+	}
+}
+
 // #endregion
 
 class ParseState {
@@ -338,11 +363,14 @@ class ParseState {
 			return this.readTagFile(token)
 		}
 		if (value.startsWith('worldgen ')) {
-			return this.readWorldgenFile(token)
+			return this.readJsonFile(token, 'worldgen', 'worldgen <type> <name> <value>')
 		}
-		for (const kind of PLAIN_JSON_KINDS) {
+		if (value.startsWith('json ')) {
+			return this.readJsonFile(token, 'json', 'json <folder> <name> <value>')
+		}
+		for (const kind of JSON_REGISTRY_KEYWORDS) {
 			if (value.startsWith(kind + ' ')) {
-				return this.readPlainJsonFile(token, kind)
+				return this.readJsonFile(token, kind, `${kind} <name> <value>`)
 			}
 		}
 		return this.unexpected(token)
@@ -1208,6 +1236,23 @@ class ParseState {
 			node.replace = { type: 'mcbuild:keyword', range: replace.range }
 			node.children.push(node.replace)
 		}
+		// The tokenizer keeps a balanced `{ a, b }` line whole.
+		const open = indexOutsideScripts(token.value, '{')
+		if (open !== -1 && token.value.endsWith('}')) {
+			for (
+				const part of splitOutsideScripts(token.value, ',', open + 1, token.value.length - 1)
+			) {
+				const entry = restOf(sliceToken(token, part.start, part.end), 0)
+				if (entry.text) {
+					const start = part.start + entry.start
+					node.entries.push(
+						this.tagEntryOf(sliceToken(token, start, start + entry.text.length)),
+					)
+				}
+			}
+			node.children.push(...node.entries)
+			return node
+		}
 		const body = this.block((entries) => {
 			const entry = this.tagEntry()
 			if (entry) {
@@ -1231,6 +1276,10 @@ class ParseState {
 			return undefined
 		}
 		this.reader.skip()
+		return this.tagEntryOf(token)
+	}
+
+	private tagEntryOf(token: McbToken): TagEntryNode {
 		let text = token.value
 		let replace: core.AstNode | undefined
 		if (text.endsWith(' replace')) {
@@ -1257,23 +1306,11 @@ class ParseState {
 		return node
 	}
 
-	private readWorldgenFile(token: McbToken): JsonFileNode {
-		const [registry, id] = this.headerWords(token, 'worldgen '.length, 2)
-		return this.finishJsonFile(token, 'worldgen', registry, id, registry.value)
-	}
-
-	private readPlainJsonFile(token: McbToken, kind: JsonFileKind): JsonFileNode {
-		const [id] = this.headerWords(token, kind.length + 1, 1)
-		return this.finishJsonFile(token, kind, undefined, id, undefined)
-	}
-
-	private finishJsonFile(
-		token: McbToken,
-		kind: JsonFileKind,
-		registry: IdentifierNode | undefined,
-		id: IdentifierNode,
-		registryValue: string | undefined,
-	): JsonFileNode {
+	/** `<kind> <name> <value>`, or `<kind> <registry> <name> <value>` for `worldgen` / `json`. */
+	private readJsonFile(token: McbToken, kind: JsonFileKind, usage: string): JsonFileNode {
+		const hasRegistry = kind === 'worldgen' || kind === 'json'
+		const words = this.headerWords(token, kind.length + 1, hasRegistry ? 2 : 1, usage)
+		const [registry, id] = hasRegistry ? words : [undefined, words[0]]
 		const node: JsonFileNode = {
 			type: 'mcbuild:json_file',
 			range: token.range,
@@ -1288,8 +1325,28 @@ class ParseState {
 		const bodyStart = id.range.end
 			+ /^[^\S\n]*/.exec(this.fullText.slice(id.range.end))![0].length
 		const opener = this.fullText[bodyStart]
+		const type = jsonFileType(kind, registry?.value)
 		if (opener !== '{' && opener !== '[') {
-			this.report(localize('mcbuild.parser.expected-block'), token.range)
+			// Any other value, like `<% %>`, is one line long.
+			const lineEnd = this.fullText.indexOf('\n', bodyStart)
+			const end = bodyStart
+				+ this.fullText.slice(bodyStart, lineEnd === -1 ? undefined : lineEnd).trimEnd().length
+			this.skipTokensBefore(end)
+			if (end === bodyStart) {
+				if (id.value) {
+					this.report(localize('mcbuild.parser.json.expected-value'), token.range)
+				}
+				return node
+			}
+			const body = parseJsonBody(
+				this.fullText.slice(bodyStart, end),
+				core.Range.create(bodyStart, end),
+				type,
+				this.ctx,
+			)
+			node.entries = [body]
+			node.children.push(body)
+			node.range = core.Range.span(token.range, body.range)
 			return node
 		}
 		const extent = jsonBodyExtent(this.fullText, bodyStart)
@@ -1299,7 +1356,6 @@ class ParseState {
 			return node
 		}
 		this.skipTokensBefore(extent.end)
-		const type = jsonFileType(kind, registryValue)
 		const body = parseJsonBody(
 			extent.text,
 			core.Range.create(bodyStart, extent.end),
@@ -1319,15 +1375,45 @@ class ParseState {
 		}
 	}
 
-	/** The first `count` words after `from`; missing ones are empty at end of line. */
-	private headerWords(token: McbToken, from: number, count: number): IdentifierNode[] {
-		const words = wordsOf(token, from)
-		const end = token.value.length
-		return Array.from(
-			{ length: count },
-			(_, i) =>
-				words[i] ? identAt(token, words[i].start, words[i].end) : identAt(token, end, end),
-		)
+	/**
+	 * The first `count` header words after `from`, like mc-build's `splitWords`: `<% %>` stays
+	 * whole and `{` or `[` ends a word. Missing ones are empty at the end of the header, and
+	 * reported with `usage` if given.
+	 */
+	private headerWords(
+		token: McbToken,
+		from: number,
+		count: number,
+		usage?: string,
+	): IdentifierNode[] {
+		const text = token.value
+		const words: IdentifierNode[] = []
+		let i = from
+		while (words.length < count) {
+			while (i < text.length && /\s/.test(text[i])) {
+				i++
+			}
+			const start = i
+			while (i < text.length && !/[\s{[]/.test(text[i])) {
+				if (text.startsWith('<%', i)) {
+					const end = text.indexOf('%>', i + 2)
+					i = end === -1 ? text.length : end + 2
+				} else {
+					i++
+				}
+			}
+			if (i === start) {
+				break
+			}
+			words.push(identAt(token, start, i))
+		}
+		if (words.length < count && usage) {
+			this.report(localize('mcbuild.parser.json.expected-header', usage), token.range)
+		}
+		while (words.length < count) {
+			words.push(identAt(token, i, i))
+		}
+		return words
 	}
 
 	// #endregion

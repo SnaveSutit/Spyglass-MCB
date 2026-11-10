@@ -39,19 +39,19 @@ export function jsonFileType(
 		case 'tag':
 			return registry ? createTagDefinition(registry) : undefined
 		case 'worldgen':
-			return registry
-				? {
-					kind: 'dispatcher',
-					registry: 'minecraft:resource',
-					parallelIndices: [{ kind: 'static', value: `worldgen/${registry}` }],
-				}
-				: undefined
+			return registry ? resourceType(`worldgen/${registry}`) : undefined
+		case 'json':
+			return registry && !registry.includes('<%') ? resourceType(registry) : undefined
 		default:
-			return {
-				kind: 'dispatcher',
-				registry: 'minecraft:resource',
-				parallelIndices: [{ kind: 'static', value: kind }],
-			}
+			return resourceType(kind)
+	}
+}
+
+function resourceType(folder: string): mcdoc.McdocType {
+	return {
+		kind: 'dispatcher',
+		registry: 'minecraft:resource',
+		parallelIndices: [{ kind: 'static', value: folder }],
 	}
 }
 

@@ -4,7 +4,12 @@ import { CommandNode } from '@spyglassmc/mcfunction'
 import { fileBase, FUNCTION_CATEGORY, TEMPLATE_CATEGORY } from '../binder/index.js'
 import { importEdit, isTemplateInScope, relativeSpec } from '../imports.js'
 import type { CompileTimeLoopNode } from '../node/index.js'
-import { DirectoryDefinitionNode, JsonFileNode, TemplateOverloadNode } from '../node/index.js'
+import {
+	DirectoryDefinitionNode,
+	JSON_REGISTRY_KEYWORDS,
+	JsonFileNode,
+	TemplateOverloadNode,
+} from '../node/index.js'
 
 export interface McbCompleterDeps {
 	/** `mcf.completer.command`; mcfunction has no per-node command completer to dispatch to. */
@@ -17,16 +22,8 @@ const MCB_TLD_KEYWORDS = [
 	'clock',
 	'import',
 	'tag',
-	'advancement',
-	'enchantment',
-	'item_modifier',
-	'loot_table',
-	'predicate',
-	'recipe',
-	'chat_type',
-	'damage_type',
-	'dimension',
-	'dimension_type',
+	'json',
+	...JSON_REGISTRY_KEYWORDS,
 	'worldgen',
 	'IF',
 	'REPEAT',

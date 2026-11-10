@@ -106,6 +106,8 @@
   "mcbuild.parser.expected-block": "Expected a “{ … }” block",
   "mcbuild.parser.js.empty-expression": "Expected a JavaScript expression",
   "mcbuild.parser.js.parse-failed": "Failed to parse embedded JavaScript",
+  "mcbuild.parser.json.expected-header": "Incomplete data file header; expected “%0%”",
+  "mcbuild.parser.json.expected-value": "Expected a JSON value",
   "mcbuild.parser.json.invalid": "Invalid JSON in data-file block",
   "mcbuild.parser.json.trailing": "Unexpected trailing content after the JSON value",
   "mcbuild.parser.return-run.expected": "Expected a command or a block after “return run”",

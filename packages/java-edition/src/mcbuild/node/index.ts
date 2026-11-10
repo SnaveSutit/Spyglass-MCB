@@ -347,24 +347,60 @@ export interface MultilineScriptNode extends core.AstNode {
 // #endregion
 // #region data files
 
+/** mc-build's data-file keywords that name their own `data/<namespace>/<keyword>/` folder. */
+export const JSON_REGISTRY_KEYWORDS = [
+	'advancement',
+	'banner_pattern',
+	'block_transformer',
+	'cat_variant',
+	'chat_type',
+	'chicken_variant',
+	'context_float_provider',
+	'context_int_provider',
+	'cow_variant',
+	'damage_type',
+	'decorated_pot_pattern',
+	'dialog',
+	'dimension',
+	'dimension_type',
+	'enchantment',
+	'enchantment_provider',
+	'frog_variant',
+	'instrument',
+	'item_modifier',
+	'jukebox_song',
+	'loot_table',
+	'painting_variant',
+	'pig_variant',
+	'predicate',
+	'recipe',
+	'slot_source',
+	'sulfur_cube_archetype',
+	'test_environment',
+	'test_instance',
+	'timeline',
+	'trade_set',
+	'trial_spawner',
+	'trim_material',
+	'trim_pattern',
+	'villager_trade',
+	'wolf_sound_variant',
+	'wolf_variant',
+	'world_clock',
+	'zombie_nautilus_variant',
+] as const
+
+/** `tag`, `worldgen <registry>`, `json <folder>`, or a registry keyword. */
 export type JsonFileKind =
 	| 'tag'
-	| 'advancement'
-	| 'enchantment'
-	| 'item_modifier'
-	| 'loot_table'
-	| 'predicate'
-	| 'recipe'
-	| 'chat_type'
-	| 'damage_type'
-	| 'dimension'
-	| 'dimension_type'
 	| 'worldgen'
+	| 'json'
+	| (typeof JSON_REGISTRY_KEYWORDS)[number]
 
 export interface JsonFileNode extends core.AstNode {
 	type: 'mcbuild:json_file'
 	kind: JsonFileKind
-	/** `tag` / `worldgen` registry. */
+	/** `tag` / `worldgen` registry, or the `json` folder. */
 	registry?: IdentifierNode
 	id: IdentifierNode
 	replace?: core.AstNode

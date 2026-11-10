@@ -72,4 +72,70 @@ describe('mcbuild parser — JSON data files', () => {
 		const { errors } = bodyOf('predicate p {\n\t"type": "x"\n')
 		assert.deepEqual(errors, ['Unexpected end of file'])
 	})
+
+	it('reads the 4.3 registry keywords', () => {
+		const { node, errors } = parse(
+			'painting_variant p {\n\t"width": 1\n}\ntrim_material t { "a": 1 }\n',
+		)
+		assert.deepEqual(errors, [])
+		const files = node.children as JsonFileNode[]
+		assert.deepEqual(files.map((f) => [f.kind, f.id.value]), [
+			['painting_variant', 'p'],
+			['trim_material', 't'],
+		])
+	})
+
+	it('reads `json <folder> <name>` with nested folders and names', () => {
+		const { node, errors } = parse('json a/b nested/name {\n\t"x": 1\n}\n')
+		assert.deepEqual(errors, [])
+		const file = node.children[0] as JsonFileNode
+		assert.deepEqual([file.kind, file.registry?.value, file.id.value], [
+			'json',
+			'a/b',
+			'nested/name',
+		])
+	})
+
+	it('keeps `<% %>` header words whole and stops a word at `[`', () => {
+		const { node, errors } = parse('json foo <% "a b" %> [1, 2]\n')
+		assert.deepEqual(errors, [])
+		const file = node.children[0] as JsonFileNode
+		assert.equal(file.id.value, '<% "a b" %>')
+		assert.equal(bodyOf('json foo arr[1, 2]\n').body, '[1, 2]')
+	})
+
+	it('reads a braceless value to the end of its line', () => {
+		const { body, types } = bodyOf('json foo n 1\nfunction f {\n}\n')
+		assert.equal(body, '1')
+		assert.deepEqual(types, ['mcbuild:json_file', 'mcbuild:function_definition'])
+	})
+
+	it('reports a missing header word or value', () => {
+		assert.deepEqual(parse('json foo\n').errors, [
+			'Incomplete data file header; expected “json <folder> <name> <value>”',
+		])
+		assert.deepEqual(parse('json foo bar\n').errors, ['Expected a JSON value'])
+	})
+
+	it('splits a one-line tag body on commas outside `<% %>`', () => {
+		const { node, errors } = parse(
+			'tag blocks t replace { minecraft:stone, minecraft:dirt replace, #minecraft:logs, <% "a,b" %> }\n'
+				+ 'function f {\n}\n',
+		)
+		assert.deepEqual(errors, [])
+		const file = node.children[0] as JsonFileNode
+		assert.ok(file.replace)
+		assert.equal(file.entries.length, 4)
+		const content =
+			'tag blocks t replace { minecraft:stone, minecraft:dirt replace, #minecraft:logs, <% "a,b" %> }'
+		const texts = (file.entries as { range: { start: number; end: number }; replace?: unknown }[])
+			.map((e) => [content.slice(e.range.start, e.range.end), !!e.replace])
+		assert.deepEqual(texts, [
+			['minecraft:stone', false],
+			['minecraft:dirt replace', true],
+			['#minecraft:logs', false],
+			['<% "a,b" %>', false],
+		])
+		assert.equal(node.children[1].type, 'mcbuild:function_definition')
+	})
 })

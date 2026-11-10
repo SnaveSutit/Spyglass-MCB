@@ -97,7 +97,6 @@ function getAction(
 		try {
 			return Arrayable.toArray(conditions).some(testSingleCondition)
 		} catch (e) {
-			// Illegal RegExp.
 			ctx.logger.error(
 				'[undeclaredSymbol#getAction] Likely encountered an illegal regular expression in the config',
 				e,

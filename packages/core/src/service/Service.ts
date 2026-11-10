@@ -232,7 +232,7 @@ export class Service {
 		return []
 	}
 
-	/** The rename target at `offset`, or a message saying why there's none. */
+	/** Returns the rename target at `offset`, or a message saying why there's none. */
 	async getRenameTarget(
 		node: FileNode<AstNode>,
 		doc: TextDocument,

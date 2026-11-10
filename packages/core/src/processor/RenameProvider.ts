@@ -18,7 +18,7 @@ export interface RenameTarget {
 	/** The name being renamed, in the current document. */
 	range: Range
 	placeholder: string
-	/** Edits renaming it to `newName` across files, or a message saying why it can't be. */
+	/** Triggers the rename operation with the new name. Returns the edits or a message if it can't be renamed. */
 	rename(newName: string): Promise<DocumentRenameEdits[] | string>
 }
 

@@ -29,10 +29,12 @@ import { importDefinition } from '@spyglassmc/java-edition/lib/mcbuild/imports.j
 import { entry } from '@spyglassmc/java-edition/lib/mcbuild/parser/index.js'
 import { addFunction } from '@spyglassmc/java-edition/lib/mcbuild/quickFix.js'
 import { renameProvider } from '@spyglassmc/java-edition/lib/mcbuild/rename.js'
-import { templateSignatureHelp } from '@spyglassmc/java-edition/lib/mcbuild/signatureHelp.js'
+import {
+	templateSignatureHelp,
+	vanillaSignatureHelp,
+} from '@spyglassmc/java-edition/lib/mcbuild/signatureHelp.js'
 import { getMockNodes } from '@spyglassmc/java-edition/lib/mcfunction/completer/index.js'
 import { argument } from '@spyglassmc/java-edition/lib/mcfunction/parser/index.js'
-import { signatureHelpProvider } from '@spyglassmc/java-edition/lib/mcfunction/signatureHelpProvider.js'
 import * as json from '@spyglassmc/json'
 import * as mcdoc from '@spyglassmc/mcdoc'
 import * as mcf from '@spyglassmc/mcfunction'
@@ -110,7 +112,7 @@ const mcbuildInitializer: ProjectInitializer = ({ meta }) => {
 	})
 	registerBinder(meta)
 	registerChecker(meta)
-	meta.registerSignatureHelpProvider(signatureHelpProvider(tree as never))
+	meta.registerSignatureHelpProvider(vanillaSignatureHelp(tree as never))
 	return { loadedVersion: '1.21' }
 }
 

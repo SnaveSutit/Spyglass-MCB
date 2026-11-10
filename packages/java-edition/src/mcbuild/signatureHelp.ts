@@ -1,9 +1,24 @@
 import type * as core from '@spyglassmc/core'
+import type * as mcf from '@spyglassmc/mcfunction'
+import { commandSignatureHelp } from '../mcfunction/signatureHelpProvider.js'
 import type { TemplateParamData } from './binder/index.js'
 import { getTemplateData, TEMPLATE_CATEGORY } from './binder/index.js'
+import { embeddedCommandAt } from './completer/index.js'
 import type { DocComment } from './doc.js'
 import { paramType } from './doc.js'
 import { EntryNode } from './node/index.js'
+
+/** Vanilla command signature help for commands nested in mc-build bodies. */
+export function vanillaSignatureHelp(
+	tree: mcf.RootTreeNode,
+): core.SignatureHelpProvider<core.FileNode<core.AstNode>> {
+	return (file, ctx) => {
+		if (!EntryNode.is(file.children[0] as core.AstNode | undefined)) {
+			return undefined
+		}
+		return commandSignatureHelp(tree, embeddedCommandAt(file, ctx), ctx.offset)
+	}
+}
 
 /** Signature help for a template call, one signature per overload. */
 export const templateSignatureHelp: core.SignatureHelpProvider<core.FileNode<core.AstNode>> = (

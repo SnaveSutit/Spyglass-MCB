@@ -8,7 +8,7 @@ import { importDefinition } from './imports.js'
 import { entry } from './parser/index.js'
 import { addFunction } from './quickFix.js'
 import { renameProvider } from './rename.js'
-import { templateSignatureHelp } from './signatureHelp.js'
+import { templateSignatureHelp, vanillaSignatureHelp } from './signatureHelp.js'
 
 export * as binder from './binder/index.js'
 export * as checker from './checker/index.js'
@@ -81,6 +81,7 @@ export const initialize = (
 		meta.registerGeneratedFolder(`mcb.config${ext}`, 'data')
 	}
 	meta.registerUndeclaredSymbolAction('function', addFunction)
+	meta.registerSignatureHelpProvider(vanillaSignatureHelp(options.tree))
 	meta.registerSignatureHelpProvider(templateSignatureHelp)
 	meta.registerRenameProvider(renameProvider)
 	meta.registerDefinitionProvider(importDefinition)

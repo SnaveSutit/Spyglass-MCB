@@ -1,4 +1,3 @@
-**/coverage
 **/node_modules
 **/.eslintcache
 **/.nyc_output
@@ -6,9 +5,9 @@
 **/*.cpuprofile
 **/*.tsbuildinfo
 
+/.helix/languages.toml
 /.history
 /.vscode/settings.json
-/.mocharc.local.jsonc
 /.idea
 
 /packages/*/lib
@@ -17,3 +16,12 @@
 /packages/*/test-out
 
 /packages/vscode-extension/**/*.vsix
+
+scripts/unicode/
+
+# LLM Usage
+.temp/
+.claude/
+.agents/
+CLAUDE.md
+AGENTS.md

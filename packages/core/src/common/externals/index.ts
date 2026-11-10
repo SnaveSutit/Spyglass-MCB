@@ -3,17 +3,9 @@ import type { Uri } from '../util.js'
 export interface Externals {
 	archive: {
 		decompressBall: (
-			buffer: Uint8Array,
+			buffer: Uint8Array<ArrayBuffer>,
 			options?: { stripLevel?: number },
 		) => Promise<DecompressedFile[]>
-		gzip: (buffer: Uint8Array) => Promise<Uint8Array>
-		gunzip: (buffer: Uint8Array) => Promise<Uint8Array>
-	}
-	crypto: {
-		/**
-		 * @returns SHA-1 digest of the given data in hexadecimal format.
-		 */
-		getSha1: (data: string | Uint8Array) => Promise<string>
 	}
 	error: {
 		/**
@@ -25,16 +17,14 @@ export interface Externals {
 		 */
 		isKind: (e: unknown, kind: ExternalErrorKind) => boolean
 	}
-	event: { EventEmitter: new() => ExternalEventEmitter }
 	fs: ExternalFileSystem
 	web: {
-		fetch: typeof fetch
 		getCache: () => Promise<Cache>
 	}
 }
 
 export interface DecompressedFile {
-	data: Uint8Array
+	data: Uint8Array<ArrayBuffer>
 	mode: number
 	mtime: string
 	path: string
@@ -42,12 +32,6 @@ export interface DecompressedFile {
 }
 
 export type ExternalErrorKind = 'EEXIST' | 'EISDIR' | 'ENOENT'
-
-export interface ExternalEventEmitter {
-	emit(eventName: string, ...args: unknown[]): boolean
-	on(eventName: string, listener: (...args: unknown[]) => unknown): this
-	once(eventName: string, listener: (...args: unknown[]) => unknown): this
-}
 
 export interface ExternalFileSystem {
 	/**
@@ -60,49 +44,41 @@ export interface ExternalFileSystem {
 	mkdir(location: FsLocation, options?: { mode?: number; recursive?: boolean }): Promise<void>
 	readdir(
 		location: FsLocation,
-	): Promise<
-		{ name: string; isDirectory(): boolean; isFile(): boolean; isSymbolicLink(): boolean }[]
-	>
-	readFile(location: FsLocation): Promise<Uint8Array>
+	): Promise<ExternalDirEntry[]>
+	readFile(location: FsLocation): Promise<Uint8Array<ArrayBuffer>>
+	rm(location: FsLocation, options?: { recursive?: boolean }): Promise<void>
 	/**
 	 * Show the file/directory in the platform-specific explorer program.
 	 *
 	 * Should not be called with unsanitized user-input path due to the possibility of arbitrary code execution.
 	 */
 	showFile(path: FsLocation): Promise<void>
-	stat(location: FsLocation): Promise<{ isDirectory(): boolean; isFile(): boolean }>
+	stat(location: FsLocation): Promise<ExternalStats>
+	/**
+	 * @deprecated Use `rm` instead
+	 */
 	unlink(location: FsLocation): Promise<void>
-	watch(locations: FsLocation[], options: { usePolling?: boolean }): FsWatcher
 	/**
 	 * @param options `mode` - File mode bit mask (e.g. `0o775`).
 	 */
 	writeFile(
 		location: FsLocation,
-		data: string | Uint8Array,
+		data: string | Uint8Array<ArrayBuffer>,
 		options?: { mode: number },
 	): Promise<void>
+}
+
+export interface ExternalStats {
+	isDirectory(): boolean
+	isFile(): boolean
+	isSymbolicLink(): boolean
+}
+
+interface ExternalDirEntry extends ExternalStats {
+	name: string
 }
 
 /**
  * A file URI string or a URI object.
  */
 export type FsLocation = string | Uri
-
-export interface FsWatcher {
-	on(eventName: 'ready', listener: () => unknown): this
-	once(eventName: 'ready', listener: () => unknown): this
-
-	on(eventName: 'add', listener: (uri: string) => unknown): this
-	once(eventName: 'add', listener: (uri: string) => unknown): this
-
-	on(eventName: 'change', listener: (uri: string) => unknown): this
-	once(eventName: 'change', listener: (uri: string) => unknown): this
-
-	on(eventName: 'unlink', listener: (uri: string) => unknown): this
-	once(eventName: 'unlink', listener: (uri: string) => unknown): this
-
-	on(eventName: 'error', listener: (error: Error) => unknown): this
-	once(eventName: 'error', listener: (error: Error) => unknown): this
-
-	close(): Promise<void>
-}

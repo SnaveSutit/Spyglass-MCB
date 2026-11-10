@@ -1,71 +1,8 @@
 import { decode as arrayBufferFromBase64, encode as arrayBufferToBase64 } from 'base64-arraybuffer'
-import pako from 'pako'
 import { fileUtil } from '../../service/fileUtil.js'
-import type {
-	ExternalEventEmitter,
-	ExternalFileSystem,
-	Externals,
-	FsLocation,
-	FsWatcher,
-} from './index.js'
+import type { ExternalFileSystem, Externals, ExternalStats, FsLocation } from './index.js'
 
-type Listener = (...args: unknown[]) => unknown
-export class BrowserEventEmitter implements ExternalEventEmitter {
-	readonly #listeners = new Map<string, { all: Set<Listener>; once: Set<Listener> }>()
-
-	emit(eventName: string, ...args: unknown[]): boolean {
-		const listeners = this.#listeners.get(eventName)
-		if (!listeners?.all?.size) {
-			return false
-		}
-		for (const listener of listeners.all) {
-			listener(...args)
-			if (listeners.once.has(listener)) {
-				listeners.all.delete(listener)
-				listeners.once.delete(listener)
-			}
-		}
-		return false
-	}
-
-	on(eventName: string, listener: Listener): this {
-		if (!this.#listeners.has(eventName)) {
-			this.#listeners.set(eventName, { all: new Set(), once: new Set() })
-		}
-		const listeners = this.#listeners.get(eventName)!
-		listeners.all.add(listener)
-		return this
-	}
-
-	once(eventName: string, listener: Listener): this {
-		if (!this.#listeners.has(eventName)) {
-			this.#listeners.set(eventName, { all: new Set(), once: new Set() })
-		}
-		const listeners = this.#listeners.get(eventName)!
-		listeners.all.add(listener)
-		listeners.once.add(listener)
-		return this
-	}
-}
-
-class BrowserFsWatcher implements FsWatcher {
-	on(event: string, listener: (...args: any[]) => unknown): this {
-		if (event === 'ready') {
-			listener()
-		}
-		return this
-	}
-
-	once(event: unknown, listener: (...args: any[]) => unknown): this {
-		if (event === 'ready') {
-			listener()
-		}
-		return this
-	}
-
-	async close(): Promise<void> {}
-}
-
+// TODO: Use Origin Private File System (OPFS) instead
 class BrowserFileSystem implements ExternalFileSystem {
 	private static readonly LocalStorageKey = 'spyglassmc-browser-fs'
 	private states: Record<string, { type: 'file'; content: string } | { type: 'directory' }>
@@ -96,7 +33,7 @@ class BrowserFileSystem implements ExternalFileSystem {
 		// Not implemented
 		return []
 	}
-	async readFile(location: FsLocation): Promise<Uint8Array> {
+	async readFile(location: FsLocation): Promise<Uint8Array<ArrayBuffer>> {
 		location = location.toString()
 		const entry = this.states[location]
 		if (!entry) {
@@ -106,16 +43,23 @@ class BrowserFileSystem implements ExternalFileSystem {
 		}
 		return new Uint8Array(arrayBufferFromBase64(entry.content))
 	}
+	async rm(_location: FsLocation, _options?: { recursive?: boolean }): Promise<void> {
+		throw new Error('Not implemented')
+	}
 	async showFile(_path: FsLocation): Promise<void> {
 		throw new Error('showFile not supported on browser')
 	}
-	async stat(location: FsLocation): Promise<{ isDirectory(): boolean; isFile(): boolean }> {
+	async stat(location: FsLocation): Promise<ExternalStats> {
 		location = location.toString()
 		const entry = this.states[location]
 		if (!entry) {
 			throw new Error(`ENOENT: ${location}`)
 		}
-		return { isDirectory: () => entry.type === 'directory', isFile: () => entry.type === 'file' }
+		return {
+			isDirectory: () => entry.type === 'directory',
+			isFile: () => entry.type === 'file',
+			isSymbolicLink: () => false,
+		}
 	}
 	async unlink(location: FsLocation): Promise<void> {
 		location = location.toString()
@@ -126,19 +70,16 @@ class BrowserFileSystem implements ExternalFileSystem {
 		delete this.states[location]
 		this.saveStates()
 	}
-	watch(_locations: FsLocation[]): FsWatcher {
-		return new BrowserFsWatcher()
-	}
 	async writeFile(
 		location: FsLocation,
-		data: string | Uint8Array,
+		data: string | Uint8Array<ArrayBuffer>,
 		_options?: { mode: number } | undefined,
 	): Promise<void> {
 		location = location.toString()
 		if (typeof data === 'string') {
 			data = new TextEncoder().encode(data)
 		}
-		data = arrayBufferToBase64(data)
+		data = arrayBufferToBase64(data.buffer)
 		this.states[location] = { type: 'file', content: data }
 		this.saveStates()
 	}
@@ -149,21 +90,6 @@ export const BrowserExternals: Externals = {
 		decompressBall(_buffer, _options) {
 			throw new Error('decompressBall not supported on browser.')
 		},
-		async gunzip(buffer) {
-			return pako.inflate(buffer)
-		},
-		async gzip(buffer) {
-			return pako.gzip(buffer)
-		},
-	},
-	crypto: {
-		async getSha1(data) {
-			if (typeof data === 'string') {
-				data = new TextEncoder().encode(data)
-			}
-			const hash = await crypto.subtle.digest('SHA-1', data)
-			return uint8ArrayToHex(new Uint8Array(hash))
-		},
 	},
 	error: {
 		createKind(kind, message) {
@@ -173,20 +99,10 @@ export const BrowserExternals: Externals = {
 			return e instanceof Error && e.message.startsWith(kind)
 		},
 	},
-	event: { EventEmitter: BrowserEventEmitter },
 	fs: new BrowserFileSystem(),
 	web: {
-		fetch,
 		getCache: () => window.caches.open('spyglassmc'),
 	},
-}
-
-function uint8ArrayToHex(array: Uint8Array) {
-	let ans = ''
-	for (const v of array) {
-		ans += v.toString(16).padStart(2, '0')
-	}
-	return ans
 }
 
 Object.freeze(BrowserExternals)

@@ -2,7 +2,6 @@ import { Range, Source } from '@spyglassmc/core'
 import type { CheckerContext, FullResourceLocation, SymbolQuery } from '@spyglassmc/core'
 import { localize } from '@spyglassmc/locales'
 import { TypeDefSymbolData } from '../../binder/index.js'
-import { type EnumKind } from '../../node/index.js'
 import type {
 	ConcreteType,
 	DispatcherType,
@@ -12,6 +11,7 @@ import type {
 	KeywordType,
 	ListType,
 	LiteralType,
+	LongType,
 	MappedType,
 	NumericType,
 	ParallelIndices,
@@ -25,8 +25,8 @@ import type {
 	UnionType,
 } from '../../type/index.js'
 import { McdocType, NumericRange } from '../../type/index.js'
-import { handleAttributes } from '../attribute/index.js'
-import type { NodeEquivalenceChecker, RuntimeNode, RuntimePair, RuntimeUnion } from './context.js'
+import { handleAttributes, shouldKeepAccordingToAttributeFilters } from '../attribute/index.js'
+import type { RuntimeNode, RuntimePair, RuntimeUnion, TypeConverter } from './context.js'
 import { McdocCheckerContext } from './context.js'
 import type { ErrorCondensingDefinition, McdocRuntimeError } from './error.js'
 import { condenseAndPropagate } from './error.js'
@@ -39,19 +39,17 @@ export type SimplifiedMcdocType =
 	| UnionType<SimplifiedMcdocTypeNoUnion>
 
 export type SimplifiedMcdocTypeNoUnion =
-	| SimplifiedEnum
+	| EnumType
 	| KeywordType
 	| ListType
 	| LiteralType
 	| NumericType
+	| LongType
 	| PrimitiveArrayType
 	| StringType
 	| SimplifiedStructType
 	| TupleType
 
-export interface SimplifiedEnum extends EnumType {
-	enumKind: EnumKind
-}
 export interface SimplifiedStructType extends StructType {
 	fields: SimplifiedStructTypePairField[]
 }
@@ -85,7 +83,7 @@ export function isAssignable(
 	assignValue: McdocType,
 	typeDef: McdocType,
 	ctx: CheckerContext,
-	isEquivalent?: NodeEquivalenceChecker,
+	convert?: TypeConverter<McdocType>,
 ): boolean {
 	if (
 		assignValue.kind === 'literal' && typeDef.kind === 'literal'
@@ -96,18 +94,27 @@ export function isAssignable(
 	}
 	let ans = true
 	const newCtx = McdocCheckerContext.create(ctx, {
-		isEquivalent,
+		tryConvertTo: convert,
 		getChildren: (_, d) => {
 			switch (d.kind) {
 				case 'list':
 					const vals = getPossibleTypes(d.item)
 					return [vals.map(v => ({ originalNode: v, inferredType: v }))]
 				case 'byte_array':
-					return [[{ originalNode: { kind: 'byte' }, inferredType: { kind: 'byte' } }]]
+					return [[{
+						originalNode: { kind: 'byte' },
+						inferredType: { kind: 'byte' },
+					}]] satisfies RuntimeUnion<McdocType>[]
 				case 'int_array':
-					return [[{ originalNode: { kind: 'int' }, inferredType: { kind: 'int' } }]]
+					return [[{
+						originalNode: { kind: 'int' },
+						inferredType: { kind: 'int' },
+					}]] satisfies RuntimeUnion<McdocType>[]
 				case 'long_array':
-					return [[{ originalNode: { kind: 'long' }, inferredType: { kind: 'long' } }]]
+					return [[{
+						originalNode: { kind: 'long' },
+						inferredType: { kind: 'long' },
+					}]] satisfies RuntimeUnion<McdocType>[]
 				case 'struct':
 					return d.fields.map(f => {
 						const vals = getPossibleTypes(f.type)
@@ -206,6 +213,14 @@ export function typeDefinition<T>(
 		const validRootDefinitions = simplifiedRoot.kind === 'union'
 			? simplifiedRoot.members
 			: [simplifiedRoot]
+
+		if (
+			validRootDefinitions.length === 0
+			&& (typeDef.kind !== 'union' || typeDef.members.length > 0)
+		) {
+			validRootDefinitions.push({ kind: 'any' })
+		}
+
 		value.definitionsByParent = [{
 			parents: [],
 			keyDefinition: undefined,
@@ -228,7 +243,7 @@ export function typeDefinition<T>(
 		for (const value of node.possibleValues) {
 			const inferredSimplified = simplify(value.node.inferredType, { ctx, node: value }).typeDef
 			const children = ctx.getChildren(value.node.originalNode, inferredSimplified)
-			const childNodes = children.map(c => {
+			value.children = children.map(c => {
 				const ans: CheckerTreeNode<T> = {
 					parent: value,
 					runtimeKey: !Array.isArray(c) ? c.key : undefined,
@@ -272,7 +287,7 @@ export function typeDefinition<T>(
 						if (!childDef) {
 							continue
 						}
-						const child = childNodes[i]
+						const child = value.children[i]
 						const existingDef = child.possibleValues.length > 0
 							? child.possibleValues[0].definitionsByParent
 								.find(
@@ -323,8 +338,7 @@ export function typeDefinition<T>(
 
 				condenseAndPropagate(definitionGroup, definitionErrors)
 			}
-			value.children = childNodes
-			nodeQueue.push(...childNodes)
+			nodeQueue.push(...value.children)
 		}
 	}
 
@@ -350,7 +364,12 @@ function attachTypeInfo<T>(node: CheckerTreeRuntimeNode<T>, ctx: McdocCheckerCon
 	const definitions = node.definitionsByParent.flatMap(d => d.validDefinitions)
 	if (definitions.length === 1) {
 		const { typeDef, groupNode } = definitions[0]
-		ctx.attachTypeInfo?.(node.node.originalNode, typeDef, groupNode.desc)
+		ctx.attachTypeInfo?.(
+			node.node.originalNode,
+			typeDef,
+			groupNode.desc,
+			groupNode.originalTypeDef,
+		)
 		handleNodeAttachers(node.node, typeDef, ctx)
 
 		if (node.entryNode.runtimeKey && groupNode.keyDefinition) {
@@ -362,10 +381,20 @@ function attachTypeInfo<T>(node: CheckerTreeRuntimeNode<T>, ctx: McdocCheckerCon
 			handleNodeAttachers(node.entryNode.runtimeKey, groupNode.keyDefinition, ctx)
 		}
 	} else if (definitions.length > 1) {
-		ctx.attachTypeInfo?.(node.node.originalNode, {
-			kind: 'union',
-			members: definitions.map(d => d.typeDef),
-		})
+		ctx.attachTypeInfo?.(
+			node.node.originalNode,
+			{
+				kind: 'union',
+				members: definitions.map(d => d.typeDef),
+			},
+			undefined,
+			{
+				kind: 'union',
+				members: node.definitionsByParent
+					.filter(d => d.validDefinitions.length > 0)
+					.map(d => d.originalTypeDef),
+			},
+		)
 
 		if (node.entryNode.runtimeKey) {
 			ctx.attachTypeInfo?.(node.entryNode.runtimeKey.originalNode, {
@@ -450,12 +479,15 @@ function checkShallowly<T>(
 	}
 
 	const typeDefValueType = getValueType(typeDef)
-	const runtimeValueType = getValueType(simplifiedInferred)
+	let runtimeValueType = getValueType(simplifiedInferred)
 
-	if (
-		runtimeValueType.kind !== typeDefValueType.kind
-		&& !ctx.isEquivalent(runtimeValueType, typeDefValueType)
-	) {
+	if (runtimeValueType.kind !== typeDefValueType.kind) {
+		simplifiedInferred = ctx.tryConvertTo(runtimeNode.originalNode, typeDefValueType)
+			?? simplifiedInferred
+		runtimeValueType = getValueType(simplifiedInferred)
+	}
+
+	if (runtimeValueType.kind !== typeDefValueType.kind) {
 		return {
 			childDefinitions,
 			errors: [{ kind: 'type_mismatch', node: runtimeNode, expected: [typeDef] }],
@@ -498,7 +530,8 @@ function checkShallowly<T>(
 			if (
 				typeDef.valueRange
 				&& simplifiedInferred.kind === 'literal'
-				&& typeof simplifiedInferred.value.value === 'number'
+				&& simplifiedInferred.value.kind !== 'string'
+				&& simplifiedInferred.value.kind !== 'boolean'
 				&& !NumericRange.isInRange(typeDef.valueRange, simplifiedInferred.value.value)
 			) {
 				errors.push({
@@ -577,7 +610,10 @@ function checkShallowly<T>(
 								kvp.value.key.inferredType,
 								pair.key,
 								ctx,
-								ctx.isEquivalent,
+								(type, target) =>
+									type === kvp.value.key.inferredType
+										? ctx.tryConvertTo(kvp.value.key.originalNode, target)
+										: undefined,
 							)
 						) {
 							foundMatch = true
@@ -585,13 +621,22 @@ function checkShallowly<T>(
 						}
 					}
 					for (const kvp of literalKvps.entries()) {
+						const literalType: LiteralType = {
+							kind: 'literal',
+							value: { kind: 'string', value: kvp[0] },
+						}
 						if (
 							(!kvp[1].definition || kvp[1].definition.keyType?.kind !== 'literal')
-							&& isAssignable(
-								{ kind: 'literal', value: { kind: 'string', value: kvp[0] } },
-								pair.key,
-								ctx,
-								ctx.isEquivalent,
+							&& kvp[1].values.some(v =>
+								isAssignable(
+									literalType,
+									pair.key,
+									ctx,
+									(type, target) =>
+										type === literalType
+											? ctx.tryConvertTo(v.pair.key.originalNode, target)
+											: undefined,
+								)
 							)
 						) {
 							foundMatch = true
@@ -906,6 +951,10 @@ function resolveIndices<T>(
 	let dynamicData = false
 	let values: SimplifiedMcdocTypeNoUnion[] = []
 	function pushValue(key: string, data: TypeDefSymbolData) {
+		if (!shouldKeepAccordingToAttributeFilters(data.typeDef.attributes, context.ctx)) {
+			return
+		}
+
 		if (context.ctx.config.env.enableMcdocCaching && data.simplifiedTypeDef) {
 			if (data.simplifiedTypeDef.kind === 'union') {
 				values.push(...data.simplifiedTypeDef.members)
@@ -1064,24 +1113,14 @@ function simplifyUnion<T>(
 ): SimplifyResult<SimplifiedMcdocType> {
 	let dynamicData = false
 
-	let validMembers = typeDef.members
-		.filter(member => {
-			let keep = true
-			handleAttributes(member.attributes, context.ctx, (handler, config) => {
-				if (!keep || !handler.filterElement) {
-					return
-				}
-				if (!handler.filterElement(config, context.ctx)) {
-					keep = false
-				}
-			})
-			return keep
-		})
+	let validMembers = typeDef.members.filter(member =>
+		shouldKeepAccordingToAttributeFilters(member.attributes, context.ctx)
+	)
 
 	const filterCanonical = context.ctx.requireCanonical
 		&& validMembers.some(m => m.attributes?.some(a => a.name === 'canonical'))
 	if (filterCanonical) {
-		validMembers = typeDef.members.filter(member =>
+		validMembers = validMembers.filter(member =>
 			member.attributes?.some(a => a.name === 'canonical')
 		)
 	}
@@ -1137,13 +1176,7 @@ function simplifyStruct<T>(
 		}
 	}
 	for (const field of typeDef.fields) {
-		let keep = true
-		handleAttributes(field.attributes, context.ctx, (handler, config) => {
-			if (keep && handler.filterElement?.(config, context.ctx) === false) {
-				keep = false
-			}
-		})
-		if (!keep) {
+		if (!shouldKeepAccordingToAttributeFilters(field.attributes, context.ctx)) {
 			continue
 		}
 		if (field.kind === 'pair') {
@@ -1244,20 +1277,11 @@ function simplifyTuple<T>(
 function simplifyEnum<T>(
 	typeDef: EnumType,
 	context: SimplifyContext<T>,
-): SimplifyResult<SimplifiedEnum> {
-	const filteredValues = typeDef.values.filter(value => {
-		let keep = true
-		handleAttributes(value.attributes, context.ctx, (handler, config) => {
-			if (!keep || !handler.filterElement) {
-				return
-			}
-			if (!handler.filterElement(config, context.ctx)) {
-				keep = false
-			}
-		})
-		return keep
-	})
-	return { typeDef: { ...typeDef, enumKind: typeDef.enumKind ?? 'int', values: filteredValues } }
+): SimplifyResult<EnumType> {
+	const filteredValues = typeDef.values.filter(value =>
+		shouldKeepAccordingToAttributeFilters(value.attributes, context.ctx)
+	)
+	return { typeDef: { ...typeDef, values: filteredValues } as EnumType }
 }
 
 function simplifyConcrete<T>(
@@ -1328,6 +1352,9 @@ function getValueType(
 		case 'literal':
 			return { kind: type.value.kind }
 		case 'enum':
+			if (type.enumKind === undefined) {
+				return { kind: 'any' }
+			}
 			return { kind: type.enumKind }
 		default:
 			return type

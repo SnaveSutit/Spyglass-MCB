@@ -1,7 +1,7 @@
 /* istanbul ignore file */
 
 import type { DecompressedFile, Externals, Logger } from '../common/index.js'
-import { Uri } from '../common/index.js'
+import { getSha1, Uri } from '../common/index.js'
 import { TwoWayMap } from '../common/TwoWayMap.js'
 import type { Dependency } from './Dependency.js'
 import type { RootUriString } from './fileUtil.js'
@@ -22,7 +22,7 @@ export interface UriProtocolSupporter {
 	 * @returns The content of the file at `uri`.
 	 * @throws If the URI doesn't exist in the file system.
 	 */
-	readFile(uri: string): Promise<Uint8Array>
+	readFile(uri: string): Promise<Uint8Array<ArrayBuffer>>
 
 	listFiles(): Iterable<string>
 	/**
@@ -115,7 +115,7 @@ export class FileServiceImpl implements FileService {
 	/**
 	 * @throws
 	 */
-	readFile(uri: string): Promise<Uint8Array> {
+	readFile(uri: string): Promise<Uint8Array<ArrayBuffer>> {
 		const protocol = this.getSupportedProtocol(uri)
 		return this.supporters.get(protocol)!.readFile(uri)
 	}
@@ -142,9 +142,9 @@ export class FileServiceImpl implements FileService {
 		try {
 			let mappedUri = this.map.getKey(virtualUri)
 			if (mappedUri === undefined) {
-				mappedUri = `${this.virtualUrisRoot}${await this.externals.crypto.getSha1(
-					virtualUri,
-				)}/${fileUtil.basename(virtualUri)}`
+				mappedUri = `${this.virtualUrisRoot}${await getSha1(virtualUri)}/${
+					fileUtil.basename(virtualUri)
+				}`
 
 				// Delete old mapped file if it exists. This makes sure the
 				// readonly permission on the file is not removed by it being
@@ -238,7 +238,6 @@ export class FileUriSupporter implements UriProtocolSupporter {
 
 export class ArchiveUriSupporter implements UriProtocolSupporter {
 	public static readonly Protocol = 'archive:'
-	private static readonly SupportedArchiveExtnames = ['.tar', '.tar.bz2', '.tar.gz', '.zip']
 
 	readonly protocol = ArchiveUriSupporter.Protocol
 
@@ -248,21 +247,25 @@ export class ArchiveUriSupporter implements UriProtocolSupporter {
 	private constructor(
 		private readonly externals: Externals,
 		private readonly logger: Logger,
+		private readonly archiveHashes: Map<string, string>,
 		private readonly entries: Map<string, Map<string, DecompressedFile>>,
 	) {}
 
 	async hash(uri: string): Promise<string> {
 		const { archiveName, pathInArchive } = ArchiveUriSupporter.decodeUri(new Uri(uri))
 		if (!pathInArchive) {
-			// Hash the archive itself.
-			return hashFile(this.externals, archiveName)
+			// Return hash of the archive itself.
+			if (!this.archiveHashes.has(archiveName)) {
+				throw new Error(`No archiveHashes entry for ${archiveName}`)
+			}
+			return this.archiveHashes.get(archiveName)!
 		} else {
 			// Hash the corresponding file.
-			return this.externals.crypto.getSha1(this.getDataInArchive(archiveName, pathInArchive))
+			return getSha1(this.getDataInArchive(archiveName, pathInArchive))
 		}
 	}
 
-	async readFile(uri: string): Promise<Uint8Array> {
+	async readFile(uri: string): Promise<Uint8Array<ArrayBuffer>> {
 		const { archiveName, pathInArchive } = ArchiveUriSupporter.decodeUri(new Uri(uri))
 		return this.getDataInArchive(archiveName, pathInArchive)
 	}
@@ -270,7 +273,7 @@ export class ArchiveUriSupporter implements UriProtocolSupporter {
 	/**
 	 * @throws
 	 */
-	private getDataInArchive(archiveName: string, pathInArchive: string): Uint8Array {
+	private getDataInArchive(archiveName: string, pathInArchive: string): Uint8Array<ArrayBuffer> {
 		const entries = this.entries.get(archiveName)
 		if (!entries) {
 			throw this.externals.error.createKind(
@@ -338,6 +341,7 @@ export class ArchiveUriSupporter implements UriProtocolSupporter {
 		externals: Externals,
 		logger: Logger,
 	): Promise<ArchiveUriSupporter> {
+		const archiveHashes = new Map<string, string>()
 		const entries = new Map<string, Map<string, DecompressedFile>>()
 
 		for (const dependency of dependencies) {
@@ -352,26 +356,29 @@ export class ArchiveUriSupporter implements UriProtocolSupporter {
 				if (entries.has(archiveName)) {
 					throw new Error(`A different archive with ${archiveName} already exists`)
 				}
+				const bytes = dependency.type === 'tarball-file'
+					? await externals.fs.readFile(dependency.uri)
+					: dependency.data
 				const files = await externals.archive.decompressBall(
-					dependency.type === 'tarball-file'
-						? await externals.fs.readFile(dependency.uri)
-						: dependency.data,
+					bytes,
 					{ stripLevel: dependency.stripLevel ?? 0 },
 				)
 				/// Debug message for #1609
 				logger.info(
 					`[ArchiveUriSupporter#create] Extracted ${files.length} files from ${archiveName}`,
 				)
+				const hash = await getSha1(bytes)
+				archiveHashes.set(archiveName, hash)
 				entries.set(archiveName, new Map(files.map((f) => [f.path.replace(/\\/g, '/'), f])))
 			} catch (e) {
 				logger.error(`[ArchiveUriSupporter#create] Bad dependency ${archiveName}`, e)
 			}
 		}
 
-		return new ArchiveUriSupporter(externals, logger, entries)
+		return new ArchiveUriSupporter(externals, logger, archiveHashes, entries)
 	}
 }
 
 async function hashFile(externals: Externals, uri: string): Promise<string> {
-	return externals.crypto.getSha1(await externals.fs.readFile(uri))
+	return getSha1(await externals.fs.readFile(uri))
 }

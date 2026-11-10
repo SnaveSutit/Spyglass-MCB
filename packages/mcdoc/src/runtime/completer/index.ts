@@ -1,14 +1,16 @@
 import type * as core from '@spyglassmc/core'
 import { TypeDefSymbolData } from '../../binder/index.js'
 import type {
+	EnumType,
 	LiteralType,
+	LongType,
 	McdocType,
 	NumericType,
 	StringType,
 	StructTypePairField,
 } from '../../type/index.js'
-import { handleAttributes } from '../attribute/index.js'
-import type { SimplifiedEnum, SimplifiedMcdocType } from '../checker/index.js'
+import { handleAttributes, shouldKeepAccordingToAttributeFilters } from '../attribute/index.js'
+import type { SimplifiedMcdocType } from '../checker/index.js'
 
 export type SimpleCompletionField = { key: string; field: core.DeepReadonly<StructTypePairField> }
 
@@ -116,19 +118,9 @@ export function getValues(
 		case 'boolean':
 			return ['false', 'true'].map(v => ({ value: v, kind: 'boolean' }))
 		case 'enum':
-			// TODO: de-duplicate this logic from the runtime simplifier
-			const filteredValues = typeDef.values.filter(value => {
-				let keep = true
-				handleAttributes(value.attributes, ctx, (handler, config) => {
-					if (!keep || !handler.filterElement) {
-						return
-					}
-					if (!handler.filterElement(config, ctx)) {
-						keep = false
-					}
-				})
-				return keep
-			})
+			const filteredValues = typeDef.values.filter(value =>
+				shouldKeepAccordingToAttributeFilters(value.attributes, ctx)
+			)
 			return filteredValues.map(v => ({
 				value: `${v.value}`,
 				detail: v.identifier,
@@ -148,7 +140,7 @@ export function getValues(
 }
 
 function getStringCompletions(
-	typeDef: core.DeepReadonly<StringType | SimplifiedEnum | LiteralType>,
+	typeDef: core.DeepReadonly<StringType | EnumType | LiteralType>,
 	ctx: McdocCompleterContext,
 ) {
 	const ans: SimpleCompletionValue[] = []
@@ -177,7 +169,7 @@ function getStringCompletions(
 }
 
 function getNumericCompletions(
-	typeDef: core.DeepReadonly<NumericType>,
+	typeDef: core.DeepReadonly<NumericType | LongType>,
 	ctx: McdocCompleterContext,
 ) {
 	const ans: SimpleCompletionValue[] = []

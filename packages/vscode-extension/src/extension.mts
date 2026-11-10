@@ -3,6 +3,7 @@
  * https://github.com/microsoft/vscode-extension-samples/blob/master/lsp-sample/client/src/extension.ts
  * ------------------------------------------------------------------------------------------*/
 
+import { PartialConfig } from '@spyglassmc/core'
 import type * as server from '@spyglassmc/language-server'
 import { localize } from '@spyglassmc/locales'
 import path from 'path'
@@ -47,11 +48,13 @@ export async function activate(context: vsc.ExtensionContext) {
 		{ language: 'json', pattern: '**/assets/*/**/*.json' },
 	]
 
-	const gameVersion = vsc.workspace.getConfiguration('spyglassmc.env').get('gameVersion')
+	const defaultConfig = PartialConfig.buildConfigFromEditorSettingsSafe(
+		vsc.workspace.getConfiguration().get('spyglassmc'),
+	)
 
 	const initializationOptions: server.CustomInitializationOptions = {
 		inDevelopmentMode: context.extensionMode === vsc.ExtensionMode.Development,
-		gameVersion: typeof gameVersion === 'string' ? gameVersion : undefined,
+		defaultConfig,
 	}
 
 	// Options to control the language client
@@ -81,6 +84,32 @@ export async function activate(context: vsc.ExtensionContext) {
 
 		const customCapabilities: server.CustomServerCapabilities | undefined = client
 			.initializeResult?.capabilities.experimental?.spyglassmc
+
+		if (customCapabilities?.analyzeProject) {
+			context.subscriptions.push(
+				vsc.commands.registerCommand('spyglassmc.analyzeProject', async () => {
+					try {
+						const result: server.MyLspAnalyzeProjectResult | undefined = await client
+							.sendRequest('spyglassmc/analyzeProject')
+						if (!result) {
+							return
+						}
+
+						const message = result.cancelled
+							? localize(
+								'analyze-project.cancelled',
+								result.analyzedFiles,
+								result.totalFiles,
+							)
+							: localize('analyze-project.done', result.analyzedFiles)
+
+						await vsc.window.showInformationMessage(message)
+					} catch (e) {
+						console.error('[client#analyzeProject]', e)
+					}
+				}),
+			)
+		}
 
 		if (customCapabilities?.dataHackPubify) {
 			context.subscriptions.push(

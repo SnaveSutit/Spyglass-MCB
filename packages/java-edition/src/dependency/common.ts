@@ -1,6 +1,7 @@
 import type * as core from '@spyglassmc/core'
 
-export type ReleaseVersion = `1.${number}`
+export type ReleaseVersion = `${bigint}.${bigint}.${bigint}` | `${bigint}.${bigint}`
+
 export namespace ReleaseVersion {
 	/**
 	 * @returns
@@ -9,7 +10,16 @@ export namespace ReleaseVersion {
 	 * * `1` if `a` is newer than `b`.
 	 */
 	export function cmp(a: ReleaseVersion, b: ReleaseVersion): number {
-		return Math.sign(Number(a.slice(2)) - Number(b.slice(2)))
+		const [majorA, minorA, patchA = 0] = a.split('.')
+		const [majorB, minorB, patchB = 0] = b.split('.')
+
+		if (majorA !== majorB) {
+			return Math.sign(Number(majorA) - Number(majorB))
+		}
+		if (minorA !== minorB) {
+			return Math.sign(Number(minorA) - Number(minorB))
+		}
+		return Math.sign(Number(patchA) - Number(patchB))
 	}
 
 	/**
@@ -29,10 +39,20 @@ export interface VersionInfo {
 	release: ReleaseVersion
 	id: string
 	name: string
+	data_pack_version: number
+	resource_pack_version: number
 }
 
 export namespace PackMcmeta {
 	export function readPackFormat(data: any): number {
+		const max = data?.pack?.max_format
+		if (Array.isArray(max) && max.length >= 1 && typeof max[0] === 'number') {
+			return max[0] // only return major pack format
+		}
+		if (typeof max === 'number') {
+			return max
+		}
+
 		const supported = data?.pack?.supported_formats
 		if (Array.isArray(supported) && supported.length === 2 && typeof supported[1] === 'number') {
 			return supported[1]
@@ -40,11 +60,12 @@ export namespace PackMcmeta {
 		if (typeof supported === 'object' && typeof supported?.max_inclusive === 'number') {
 			return supported.max_inclusive
 		}
+
 		const format = data?.pack?.pack_format
 		if (typeof format === 'number') {
 			return format
 		}
-		throw new Error('“pack.pack_format” is not a number')
+		throw new Error('No pack format found')
 	}
 
 	export async function getType(packRoot: string, externals: core.Externals) {

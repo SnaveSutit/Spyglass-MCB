@@ -1,9 +1,12 @@
+import type { AnalyzeProjectResult, PartialConfig } from '@spyglassmc/core'
+
 export interface CustomInitializationOptions {
 	inDevelopmentMode?: boolean
-	gameVersion?: string
+	defaultConfig?: PartialConfig
 }
 
 export interface CustomServerCapabilities {
+	analyzeProject?: boolean
 	dataHackPubify?: boolean
 	resetProjectCache?: boolean
 	showCacheRoot?: boolean
@@ -12,3 +15,9 @@ export interface CustomServerCapabilities {
 export interface MyLspDataHackPubifyRequestParams {
 	initialism: string
 }
+
+/**
+ * Response of the `spyglassmc/analyzeProject` request. `undefined` is responded instead if an
+ * analysis is already in progress.
+ */
+export type MyLspAnalyzeProjectResult = AnalyzeProjectResult

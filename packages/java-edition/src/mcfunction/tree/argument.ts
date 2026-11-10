@@ -46,6 +46,12 @@ export interface MinecraftColumnPosArgumentTreeNode extends mcf.ArgumentTreeNode
 export interface MinecraftComponentArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:component'
 }
+export interface MinecraftContextFloatProviderArgumentTreeNode extends mcf.ArgumentTreeNode {
+	parser: 'minecraft:context_float_provider'
+}
+export interface MinecraftContextIntProviderArgumentTreeNode extends mcf.ArgumentTreeNode {
+	parser: 'minecraft:context_int_provider'
+}
 export interface MinecraftDialogArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:dialog'
 }
@@ -61,6 +67,9 @@ export interface MinecraftEntityAnchorArgumentTreeNode extends mcf.ArgumentTreeN
 }
 export interface MinecraftEntitySummonArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:entity_summon'
+}
+export interface MinecraftFeatureArgumentTreeNode extends mcf.ArgumentTreeNode {
+	parser: 'minecraft:feature'
 }
 export interface RangeProperties extends Record<string, unknown> {
 	min: number
@@ -225,6 +234,9 @@ export interface MinecraftScoreHolderArgumentTreeNode extends mcf.ArgumentTreeNo
 export interface MinecraftScoreboardSlotArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:scoreboard_slot'
 }
+export interface MinecraftSlotSourceArgumentTreeNode extends mcf.ArgumentTreeNode {
+	parser: 'minecraft:slot_source'
+}
 export interface MinecraftStyleArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:style'
 }
@@ -234,6 +246,9 @@ export interface MinecraftSwizzleArgumentTreeNode extends mcf.ArgumentTreeNode {
 export interface MinecraftTeamArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:team'
 }
+export interface MinecraftTeamColorArgumentTreeNode extends mcf.ArgumentTreeNode {
+	parser: 'minecraft:team_color'
+}
 export interface MinecraftTemplateMirrorArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:template_mirror'
 }
@@ -242,6 +257,9 @@ export interface MinecraftTemplateRotationArgumentTreeNode extends mcf.ArgumentT
 }
 export interface MinecraftTimeArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:time'
+	properties?: {
+		min: number
+	}
 }
 export interface MinecraftUuidArgumentTreeNode extends mcf.ArgumentTreeNode {
 	parser: 'minecraft:uuid'
@@ -275,11 +293,14 @@ export type ArgumentTreeNode =
 	| MinecraftColorArgumentTreeNode
 	| MinecraftColumnPosArgumentTreeNode
 	| MinecraftComponentArgumentTreeNode
+	| MinecraftContextIntProviderArgumentTreeNode
+	| MinecraftContextFloatProviderArgumentTreeNode
 	| MinecraftDialogArgumentTreeNode
 	| MinecraftDimensionArgumentTreeNode
 	| MinecraftEntityArgumentTreeNode
 	| MinecraftEntityAnchorArgumentTreeNode
 	| MinecraftEntitySummonArgumentTreeNode
+	| MinecraftFeatureArgumentTreeNode
 	| MinecraftFloatRangeArgumentTreeNode
 	| MinecraftFunctionArgumentTreeNode
 	| MinecraftGamemodeArgumentTreeNode
@@ -312,9 +333,11 @@ export type ArgumentTreeNode =
 	| MinecraftRotationArgumentTreeNode
 	| MinecraftScoreHolderArgumentTreeNode
 	| MinecraftScoreboardSlotArgumentTreeNode
+	| MinecraftSlotSourceArgumentTreeNode
 	| MinecraftStyleArgumentTreeNode
 	| MinecraftSwizzleArgumentTreeNode
 	| MinecraftTeamArgumentTreeNode
+	| MinecraftTeamColorArgumentTreeNode
 	| MinecraftTemplateMirrorArgumentTreeNode
 	| MinecraftTemplateRotationArgumentTreeNode
 	| MinecraftTimeArgumentTreeNode

@@ -1,6 +1,21 @@
 {
-	"extends": "../../tsconfig-base",
+	"extends": "../../tsconfig-type-strip",
 	"compilerOptions": {
+		"noEmit": false,
 		"outDir": "../lib"
-	}
+	},
+	"references": [
+		{
+			"path": "../../core/src"
+		},
+		{
+			"path": "../../java-edition/src"
+		},
+		{
+			"path": "../../json/src"
+		},
+		{
+			"path": "../../mcdoc/src"
+		}
+	]
 }

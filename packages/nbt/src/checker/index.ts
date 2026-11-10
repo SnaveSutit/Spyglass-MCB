@@ -1,27 +1,62 @@
 import * as core from '@spyglassmc/core'
 import { localeQuote, localize } from '@spyglassmc/locales'
 import * as mcdoc from '@spyglassmc/mcdoc'
+import type { SimplifiedMcdocTypeNoUnion } from '@spyglassmc/mcdoc/lib/runtime/checker/index.js'
 import type { NbtPathChild, NbtPathNode, TypedNbtNode } from '../node/index.js'
 import {
+	NbtByteNode,
+	NbtCollectionNode,
 	NbtCompoundNode,
+	NbtIntegerAlikeNode,
+	NbtListNode,
 	NbtNode,
+	NbtNumberNode,
 	NbtPathFilterNode,
 	NbtPathIndexNode,
 	NbtPathKeyNode,
 	NbtPrimitiveNode,
 	NbtStringNode,
+	NbtUuidFunctionNode,
 } from '../node/index.js'
+import { localizeTag } from '../util.js'
 import { getBlocksFromItem, getEntityFromItem } from './mcdocUtil.js'
 
-export const typed: core.SyncChecker<TypedNbtNode> = (node, ctx) => {
+/**
+ * Runs `typeDefinition` on the typed wrapper's inner NbtNode.
+ */
+export function typed(
+	node: TypedNbtNode,
+	ctx: core.CheckerContext,
+): void {
 	typeDefinition(node.targetType)(node.children[0], ctx)
+}
+
+/**
+ * Reports list elements whose type differs from the type of the first element.
+ *
+ * Not registered by {@link register}: whether lists have to be homogeneous
+ * depends on the game version, which only the edition package knows. Edition
+ * packages register this checker for `nbt:list` when it applies.
+ */
+export const listTypeHomogeneous: core.SyncChecker<NbtListNode> = (node, ctx) => {
+	if (!node.valueType) {
+		return
+	}
+	for (const { value } of node.children) {
+		if (value && value.type !== node.valueType) {
+			ctx.err.report(
+				localize('expected-got', localizeTag(node.valueType), localizeTag(value.type)),
+				value,
+			)
+		}
+	}
 }
 
 export function register(meta: core.MetaRegistry) {
 	meta.registerChecker<TypedNbtNode>('nbt:typed', typed)
 }
 
-interface Options {
+export interface Options {
 	isPredicate?: boolean
 	isMerge?: boolean
 }
@@ -77,37 +112,57 @@ export function typeDefinition(
 	options: Options = {},
 ): core.SyncChecker<NbtNode> {
 	return (node, ctx) => {
+		// Run any per-NbtNode-type checkers (e.g. the java-edition
+		// SNBT-syntax check) before mcdoc/runtime descends so that
+		// version-aware syntax diagnostics land alongside the type
+		// errors instead of after them.
+		core.checker.fallbackSync(node, ctx)
 		mcdoc.runtime.checker.typeDefinition<NbtNode>(
 			[{ originalNode: node, inferredType: inferType(node) }],
 			typeDef,
 			mcdoc.runtime.checker.McdocCheckerContext.create(ctx, {
 				allowMissingKeys: options.isPredicate || options.isMerge,
 				requireCanonical: options.isPredicate,
-				isEquivalent: (inferred, def) => {
-					if (def.kind === 'boolean') {
-						// TODO: this should check whether the value is 0 or 1
-						return inferred.kind === 'byte'
+				tryConvertTo: (node, target) => {
+					if (target.kind === 'boolean' && NbtByteNode.is(node)) {
+						if (node.value === 0) {
+							return { kind: 'literal', value: { kind: 'boolean', value: false } }
+						} else if (node.value === 1) {
+							return { kind: 'literal', value: { kind: 'boolean', value: true } }
+						}
 					}
-					if (inferred.kind === 'list') {
-						return def.kind === 'list' || def.kind === 'tuple'
+					if (target.kind === 'tuple' && NbtListNode.is(node)) {
+						return {
+							kind: 'tuple',
+							items: [],
+						}
 					}
-					if (options.isPredicate) {
-						return inferred.kind === def.kind
+					if (!options.isPredicate) {
+						if (NbtNumberNode.is(node)) {
+							const literalValue = mcdoc.LiteralNumericValue.makeIfValid(
+								target.kind,
+								node.value,
+								NbtIntegerAlikeNode.is(node),
+								true,
+							)
+							if (literalValue !== undefined) {
+								return { kind: 'literal', value: literalValue }
+							}
+						}
+						if (NbtCollectionNode.is(node)) {
+							switch (target.kind) {
+								case 'list':
+									return { kind: 'list', item: { kind: 'any' } }
+								case 'byte_array':
+								case 'int_array':
+								case 'long_array':
+									return { kind: target.kind }
+								case 'tuple':
+									return { kind: 'tuple', items: [] }
+							}
+						}
 					}
-					switch (inferred.kind) {
-						case 'struct':
-							return def.kind === 'struct'
-						case 'byte':
-						case 'short':
-						case 'int':
-						case 'long':
-							return ['byte', 'short', 'int', 'long', 'float', 'double'].includes(def.kind)
-						case 'float':
-						case 'double':
-							return ['float', 'double'].includes(def.kind)
-						default:
-							return false
-					}
+					return undefined
 				},
 				getChildren: node => {
 					const { type } = node
@@ -116,6 +171,11 @@ export function typeDefinition(
 						|| type === 'nbt:int_array' || type === 'nbt:long_array'
 					) {
 						return node.children.filter(n => n.value).map(
+							n => [{ originalNode: n.value!, inferredType: inferType(n.value!) }],
+						)
+					}
+					if (type === 'nbt:uuid_function') {
+						return node.intArray.children.filter(n => n.value).map(
 							n => [{ originalNode: n.value!, inferredType: inferType(n.value!) }],
 						)
 					}
@@ -158,14 +218,36 @@ export function typeDefinition(
 								`\`\`\`typescript\n${keyString}: ${valueString}\n\`\`\`\n${desc}`
 
 							if (NbtPrimitiveNode.is(node.parent.value)) {
-								node.parent.value.hover =
-									`\`\`\`typescript\n${valueString}\n\`\`\`\n${desc}`
+								let valueHover = `\`\`\`typescript\n${valueString}\n\`\`\`\n${desc}`
+								// Preserve any hover set by the parser (e.g. the decimal
+								// value of a hex/binary literal) so it shows up alongside
+								// the mcdoc type info instead of being clobbered.
+								if (node.parent.value.hover) {
+									valueHover += `\n\n${node.parent.value.hover}`
+								}
+								node.parent.value.hover = valueHover
 							}
 						}
 					} else if (NbtPrimitiveNode.is(node)) {
-						node.hover = `\`\`\`typescript\n${
+						let hover = `\`\`\`typescript\n${
 							mcdoc.McdocType.toString(definition)
 						}\n\`\`\`\n${desc}`
+						// Preserve any hover set by the parser (e.g. the decimal
+						// value of a hex/binary literal) so it shows up alongside
+						// the mcdoc type info instead of being clobbered.
+						if (node.hover) {
+							hover += `\n\n${node.hover}`
+						}
+						node.hover = hover
+					} else if (NbtUuidFunctionNode.is(node)) {
+						const uuidNode = node
+						// Skip the hover when the UUID is invalid - the parser
+						// already reports the error on the string arg, and a
+						// hover here would be redundant noise.
+						if (uuidNode.value.length !== 4) {
+							return
+						}
+						uuidNode.hover = `\`\`\`mcdoc\n[I; ${uuidNode.value.join(', ')}]\n\`\`\``
 					}
 				},
 				nodeAttacher: (node, attacher) => attacher(node),
@@ -186,7 +268,7 @@ export function typeDefinition(
 	}
 }
 
-function inferType(node: NbtNode): Exclude<mcdoc.McdocType, mcdoc.UnionType> {
+function inferType(node: NbtNode): SimplifiedMcdocTypeNoUnion {
 	switch (node.type) {
 		case 'nbt:byte':
 			return { kind: 'literal', value: { kind: 'byte', value: node.value } }
@@ -195,17 +277,20 @@ function inferType(node: NbtNode): Exclude<mcdoc.McdocType, mcdoc.UnionType> {
 		case 'nbt:float':
 			return { kind: 'literal', value: { kind: 'float', value: node.value } }
 		case 'nbt:long':
-			return {
-				kind: 'literal',
-				// TODO: this should NOT change type from `bigint` to `number`
-				value: { kind: 'long', value: Number(node.value) },
-			}
+			return { kind: 'literal', value: { kind: 'long', value: node.value } }
 		case 'nbt:int':
 			return { kind: 'literal', value: { kind: 'int', value: node.value } }
 		case 'nbt:short':
 			return { kind: 'literal', value: { kind: 'short', value: node.value } }
 		case 'nbt:string':
 			return { kind: 'literal', value: { kind: 'string', value: node.value } }
+		case 'nbt:bool_function':
+			return { kind: 'literal', value: { kind: 'boolean', value: node.value } }
+		case 'nbt:uuid_function':
+			// A `uuid(...)` call is semantically a 4-long int array. The
+			// runtime checker sees it as a ghost `int_array` so fields typed
+			// as `int[]` (or `int_array`) accept it without complaint.
+			return { kind: 'int_array', lengthRange: { kind: 0b00, min: 4, max: 4 } }
 		case 'nbt:list':
 			return { kind: 'list', item: { kind: 'any' } }
 		case 'nbt:compound':
@@ -312,18 +397,20 @@ export function path(
 			mcdoc.runtime.checker.McdocCheckerContext.create(ctx, {
 				allowMissingKeys: true,
 				requireCanonical: true,
-				isEquivalent: (inferred, def) => {
-					switch (inferred.kind) {
-						case 'list':
-						case 'byte_array':
-						case 'int_array':
-						case 'long_array':
-							return ['list', 'tuple', 'byte_array', 'int_array', 'long_array'].includes(
-								def.kind,
-							)
-						default:
-							return false
+				tryConvertTo: (node, target) => {
+					if (NbtPathIndexNode.is(node.node)) {
+						switch (target.kind) {
+							case 'list':
+								return { kind: 'list', item: { kind: 'any' } }
+							case 'byte_array':
+							case 'int_array':
+							case 'long_array':
+								return { kind: target.kind }
+							case 'tuple':
+								return { kind: 'tuple', items: [] }
+						}
 					}
+					return undefined
 				},
 				getChildren: (link): mcdoc.runtime.checker.RuntimeUnion<NbtPathLink>[] => {
 					while (link.next && link.node.type !== 'leaf' && NbtPathFilterNode.is(link.node)) {
@@ -362,7 +449,18 @@ export function path(
 						({ originalNode: link }) => link.node.range,
 					)(error)
 				},
-				attachTypeInfo: (link, definition, desc = '') => {
+				attachTypeInfo: function attachTypeInfo(
+					link,
+					definition,
+					desc = '',
+					originalDefinition,
+				) {
+					if (NbtPathFilterNode.is(link.node) && link.next) {
+						attachTypeInfo(link.next, definition, desc, originalDefinition)
+					}
+					if (link.node.type === 'leaf') {
+						link.path.endOriginalTypeDef = originalDefinition
+					}
 					if (definition.kind === 'literal' && !definition.attributes?.length) {
 						return
 					}
@@ -400,7 +498,7 @@ export function path(
 	}
 }
 
-function inferPath(link: NbtPathLink): Exclude<mcdoc.McdocType, mcdoc.UnionType> {
+function inferPath(link: NbtPathLink): SimplifiedMcdocTypeNoUnion {
 	if (link.node.type === 'leaf') {
 		return { kind: 'unsafe' }
 	}

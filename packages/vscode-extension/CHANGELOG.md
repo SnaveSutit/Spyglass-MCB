@@ -1,3 +1,18 @@
+# v4.14.0 (2026-10-13)
+
+### ✨ New Features
+- [`9948bd9`](https://github.com/SpyglassMC/Spyglass/commit/9948bd9e275d345e530a28e9246e5855ed887e9b) Added `hex_argb` and `hex_rgba` colors info providers ([#2107](https://github.com/SpyglassMC/Spyglass/pull/2107))
+- [`93e822d`](https://github.com/SpyglassMC/Spyglass/commit/93e822dfb23c11d119dde996e380150f2635d11e) Added 26.4-snapshot-3 changes ([#2110](https://github.com/SpyglassMC/Spyglass/pull/2110))
+
+# v4.6.0 (2025-12-16)
+
+### ✨ New Features
+- [`ad85406`](https://github.com/SpyglassMC/Spyglass/commit/ad85406bddf04b81ea1f13672da563e5c0f9006d) Supports the new `year.drop.patch` version format ([#1918](https://github.com/SpyglassMC/Spyglass/pull/1918))
+
+### 🐛 Bug Fixes
+- [`867d295`](https://github.com/SpyglassMC/Spyglass/commit/867d29583a5fe5b0ee2b5be82c9a1c1eed1fbe22) Fixes a bug with calculating archive hashes
+- [`001aded`](https://github.com/SpyglassMC/Spyglass/commit/001aded620cf0dc8ffc4caac1bea2985baf8ceb4) Added trade registries and stopwatch command patch ([#1925](https://github.com/SpyglassMC/Spyglass/pull/1925))
+
 # v4.5.12 (2025-04-15)
 
 ### ✨ New Features

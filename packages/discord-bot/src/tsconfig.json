@@ -1,7 +1,20 @@
 {
 	"extends": "../../tsconfig-base",
 	"compilerOptions": {
-		"module": "ES2022",
 		"outDir": "../lib"
-	}
+	},
+	"references": [
+		{
+			"path": "../../core/src"
+		},
+		{
+			"path": "../../java-edition/src"
+		},
+		{
+			"path": "../../locales/src"
+		},
+		{
+			"path": "../../mcdoc/src"
+		}
+	]
 }

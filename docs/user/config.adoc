@@ -6,6 +6,7 @@
 The config file can be put under the root of your workspace with either of the following names.
 
 * `spyglass.json`
+* `.spyglassrc`
 * `.spyglassrc.json`
 
 There's no support for multiple config files or inheriting/overriding config files yet.
@@ -42,8 +43,9 @@ There's no support for multiple config files or inheriting/overriding config fil
 		"language": "Default",
 		"permissionLevel": 2,
 		"plugins": [],
-		"mcmetaSummaryOverrides": {},
-		"useFilePolling": false
+		"enableSymbolCache": true,
+		"enableMcdocCaching": false,
+		"mcmetaSummaryOverrides": {}
 	},
 	"format": {
 		"blockStateBracketSpacing": { "inside": 0 },
@@ -110,6 +112,9 @@ There's no support for multiple config files or inheriting/overriding config fil
 	}
 }
 ----
+
+== TypeScript Source
+https://github.com/SpyglassMC/Spyglass/blob/main/packages/core/src/service/Config.ts#L15
 
 == Environment Settings
 

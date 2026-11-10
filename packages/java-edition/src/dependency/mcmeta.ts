@@ -2,9 +2,48 @@ import * as core from '@spyglassmc/core'
 import type { TypeDefSymbolData } from '@spyglassmc/mcdoc/lib/binder/index.js'
 import type { PackInfo, VersionInfo } from './common.js'
 import { ReleaseVersion } from './common.js'
+import type {
+	McmetaRegistries,
+	McmetaStates,
+	McmetaSummary,
+	McmetaVersion,
+	McmetaVersions,
+} from './mcmeta/types.js'
 
-// DOCS: Update this when a new snapshot cycle begins
-export const NEXT_RELEASE_VERSION = '1.21.9'
+// Matches development versions with the release version in its name
+const DevelopmentVersionPattern = /^(\d\d\.\d(?:\.\d?\d)?)\-\w+\-\d+$/
+
+function toVersionInfo(
+	version: McmetaVersion,
+	release?: ReleaseVersion,
+): VersionInfo {
+	return {
+		id: version.id,
+		name: version.name,
+		release: release ?? version.id as ReleaseVersion,
+		data_pack_version: version.data_pack_version,
+		resource_pack_version: version.resource_pack_version,
+	}
+}
+
+/**
+ * Determines the latest development release for which a release target could be determined
+ * @param versions List of all versions in mcmeta
+ * @returns latest development release
+ */
+export function getLatestSnapshot(versions: McmetaVersions): VersionInfo {
+	for (const version of versions) {
+		if (version.type === 'release') {
+			return toVersionInfo(version)
+		}
+
+		const matches = version.id.match(DevelopmentVersionPattern)
+		if (matches) {
+			return toVersionInfo(version, matches[1] as ReleaseVersion)
+		}
+	}
+	throw new Error('no next release version found')
+}
 
 /**
  * @param inputVersion {@link core.Config.env.gameVersion}
@@ -15,31 +54,29 @@ export function resolveConfiguredVersion(
 	packs: PackInfo[],
 	logger: core.Logger,
 ): VersionInfo {
-	function findReleaseTarget(version: McmetaVersion): string {
-		if (version.release_target) {
-			return version.release_target
-		}
+	// Gets the release version id for any version, only used when specifically selecting release in config
+	function getReleaseVersion(version: McmetaVersion): ReleaseVersion | undefined {
+		// Is release, so return own id
 		if (version.type === 'release') {
-			return version.id
+			return version.id as ReleaseVersion
 		}
+
+		// Development versions with release version in name
+		const matches = version.id.match(DevelopmentVersionPattern)
+		if (matches) {
+			return matches[1] as ReleaseVersion
+		}
+
+		// Old snapshots without release version in name
 		const index = versions.findIndex((v) => v.id === version!.id)
 		for (let i = index; i >= 0; i -= 1) {
 			if (versions[i].type === 'release') {
-				return versions[i].id
+				return versions[i].id as ReleaseVersion
 			}
 		}
-		return NEXT_RELEASE_VERSION
-	}
 
-	function toVersionInfo(
-		version: McmetaVersion | undefined,
-	): VersionInfo {
-		version = version ?? versions[0]
-		return {
-			id: version.id,
-			name: version.name,
-			release: findReleaseTarget(version) as ReleaseVersion,
-		}
+		// No release version found. This should only happen in exceptional circumstances, such as april fools or experimental versions.
+		return undefined
 	}
 
 	if (versions.length === 0) {
@@ -55,34 +92,40 @@ export function resolveConfiguredVersion(
 	inputVersion = inputVersion.toLowerCase()
 
 	versions = versions.sort((a, b) => b.data_version - a.data_version)
-	const latestRelease = versions.find((v) => v.type === 'release')
+	const latestReleaseMcmeta = versions.find((v) => v.type === 'release')
+	if (latestReleaseMcmeta === undefined) {
+		throw new Error('mcmeta version list does not contain any releases')
+	}
+	const latestRelease = toVersionInfo(latestReleaseMcmeta)
+	const latestSnaphot = getLatestSnapshot(versions)
+
 	if (inputVersion === 'auto') {
 		if (packs.length === 0) {
 			// Fall back to the latest release if pack mcmeta is not available
 			logger.info(
 				`[resolveConfiguredVersion] No pack format detected, selecting latest release ${latestRelease?.id}`,
 			)
-			return toVersionInfo(latestRelease)
+			return latestRelease
 		}
 		packs.sort((a, b) => b.format - a.format)
 		const maxData = packs.filter(p => p.type === 'data')[0]
 		const maxAssets = packs.filter(p => p.type === 'assets')[0]
 		// Look for versions from recent to oldest, picking the most recent release that matches
-		let oldestRelease = versions[0]
+		let nextReleaseVersionInfo = latestSnaphot
 		const releases = versions.filter(v => v.type === 'release')
 		for (const version of releases) {
 			// If we already passed the pack format, use the oldest release so far
 			if (maxData && maxData.format > version.data_pack_version) {
 				logger.info(
-					`[resolveConfiguredVersion] Detected data pack format ${maxData.format} in ${maxData.packRoot}, selecting version ${oldestRelease.id}`,
+					`[resolveConfiguredVersion] Detected data pack format ${maxData.format} in ${maxData.packRoot}, selecting version ${nextReleaseVersionInfo.id}`,
 				)
-				return toVersionInfo(oldestRelease)
+				return nextReleaseVersionInfo
 			}
 			if (maxAssets && maxAssets.format > version.resource_pack_version) {
 				logger.info(
-					`[resolveConfiguredVersion] Detected resource pack format ${maxAssets.format} in ${maxAssets.packRoot}, selecting version ${oldestRelease.id}`,
+					`[resolveConfiguredVersion] Detected resource pack format ${maxAssets.format} in ${maxAssets.packRoot}, selecting version ${nextReleaseVersionInfo.id}`,
 				)
-				return toVersionInfo(oldestRelease)
+				return nextReleaseVersionInfo
 			}
 			if (maxData && maxData.format === version.data_pack_version) {
 				logger.info(
@@ -96,33 +139,44 @@ export function resolveConfiguredVersion(
 				)
 				return toVersionInfo(version)
 			}
-			oldestRelease = version
+			nextReleaseVersionInfo = toVersionInfo(version)
 		}
 		// If the pack format is still lower, use the oldest known release version
 		logger.info(
-			`[resolveConfiguredVersion] Detected pack format too low, selecting oldest supported release ${oldestRelease?.id}`,
+			`[resolveConfiguredVersion] Detected pack format too low, selecting oldest supported release ${nextReleaseVersionInfo?.id}`,
 		)
-		return toVersionInfo(oldestRelease)
+		return nextReleaseVersionInfo
 	} else if (inputVersion === 'latest release') {
 		logger.info(
-			`[resolveConfiguredVersion] Using config "${inputVersion}", selecting version ${latestRelease?.id}`,
+			`[resolveConfiguredVersion] Using config "${inputVersion}", selecting version ${latestRelease.id}`,
 		)
-		return toVersionInfo(latestRelease)
+		return latestRelease
 	} else if (inputVersion === 'latest snapshot') {
 		logger.info(
-			`[resolveConfiguredVersion] Using config "${inputVersion}", selecting version ${
-				versions[0]?.id
-			}`,
+			`[resolveConfiguredVersion] Using config "${inputVersion}", selecting version ${latestSnaphot.id}`,
 		)
-		return toVersionInfo(versions[0])
+		return latestSnaphot
 	}
 	const configVersion = versions.find((v) =>
 		inputVersion === v.id.toLowerCase() || inputVersion === v.name.toLowerCase()
 	)
+	if (configVersion === undefined) {
+		logger.info(
+			`[resolveConfiguredVersion] Could not find config version "${inputVersion}", selecting version ${latestSnaphot.id}`,
+		)
+		return latestSnaphot
+	}
+	const configReleaseVersion = getReleaseVersion(configVersion)
+	if (configReleaseVersion === undefined) {
+		logger.info(
+			`[resolveConfiguredVersion] Could not determine release version of config "${inputVersion}", selecting version ${latestSnaphot.id}`,
+		)
+		return latestSnaphot
+	}
 	logger.info(
 		`[resolveConfiguredVersion] Using config "${inputVersion}", selecting version ${configVersion?.id}`,
 	)
-	return toVersionInfo(configVersion)
+	return toVersionInfo(configVersion, configReleaseVersion)
 }
 
 export function symbolRegistrar(
@@ -145,7 +199,11 @@ export function symbolRegistrar(
 
 		for (const [id, [properties, defaults]] of Object.entries(states)) {
 			const uri = McmetaSummaryUri
-			symbols.query(uri, category, core.ResourceLocation.lengthen(id)).onEach(
+			const query = symbols.query(uri, category, core.ResourceLocation.lengthen(id))
+			if (!query.symbol) {
+				continue
+			}
+			query.onEach(
 				Object.entries(properties),
 				([state, values], blockQuery) => {
 					const defaultValue = defaults[state]!
@@ -263,10 +321,10 @@ export function symbolRegistrar(
 }
 
 export const Fluids: McmetaStates = {
-	flowing_lava: [{ falling: ['false', 'true'], level: ['1', '2', '3', '4', '5', '6', '7', '8'] }, {
-		falling: 'false',
-		level: '1',
-	}],
+	flowing_lava: [
+		{ falling: ['false', 'true'], level: ['1', '2', '3', '4', '5', '6', '7', '8'] },
+		{ falling: 'false', level: '1' },
+	],
 	flowing_water: [
 		{ falling: ['false', 'true'], level: ['1', '2', '3', '4', '5', '6', '7', '8'] },
 		{ falling: 'false', level: '1' },
@@ -274,62 +332,3 @@ export const Fluids: McmetaStates = {
 	lava: [{ falling: ['false', 'true'] }, { falling: 'false' }],
 	water: [{ falling: ['false', 'true'] }, { falling: 'false' }],
 }
-
-// #region Types
-export interface McmetaVersion {
-	id: string
-	name: string
-	release_target: string | undefined
-	type: 'release' | 'snapshot'
-	stable: boolean
-	data_version: number
-	protocol_version: number
-	data_pack_version: number
-	resource_pack_version: number
-	build_time: string
-	release_time: string
-	sha1: string
-}
-export type McmetaVersions = McmetaVersion[]
-
-export interface McmetaSummary {
-	blocks: McmetaStates
-	commands: McmetaCommands
-	fluids: McmetaStates
-	registries: McmetaRegistries
-}
-
-export interface McmetaStates {
-	[id: string]: [{ [name: string]: string[] }, { [name: string]: string }]
-}
-
-export type McmetaCommands = RootTreeNode
-
-interface BaseTreeNode {
-	type: string
-	children?: { [name: string]: CommandTreeNode }
-	executable?: boolean
-	redirect?: [string]
-}
-
-export interface ArgumentTreeNode extends BaseTreeNode {
-	type: 'argument'
-	parser: string
-	properties?: { [name: string]: any }
-}
-
-export interface LiteralTreeNode extends BaseTreeNode {
-	type: 'literal'
-}
-
-export interface RootTreeNode extends BaseTreeNode {
-	type: 'root'
-	children: { [command: string]: LiteralTreeNode }
-}
-
-export type CommandTreeNode = ArgumentTreeNode | LiteralTreeNode | RootTreeNode
-
-export interface McmetaRegistries {
-	[id: string]: string[]
-}
-// #endregion

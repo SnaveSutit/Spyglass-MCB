@@ -199,6 +199,23 @@ export function getPatch(release: ReleaseVersion): PartialRootTreeNode {
 					unless: ExecuteCondition,
 				},
 			},
+			...(ReleaseVersion.cmp(release, '1.21.9') >= 0
+				? {
+					fetchprofile: {
+						children: {
+							id: {
+								children: {
+									id: {
+										properties: {
+											category: 'player_uuid',
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				: {}),
 			function: {
 				children: {
 					name: {
@@ -515,6 +532,40 @@ export function getPatch(release: ReleaseVersion): PartialRootTreeNode {
 				}
 				: {}),
 			playsound: Sound,
+			...(ReleaseVersion.cmp(release, '26.3') >= 0
+				? {
+					posteffect: {
+						children: {
+							add: {
+								children: {
+									targets: {
+										children: {
+											posteffect: {
+												properties: {
+													category: 'post_effect',
+												},
+											},
+										},
+									},
+								},
+							},
+							remove: {
+								children: {
+									targets: {
+										children: {
+											posteffect: {
+												properties: {
+													category: 'post_effect',
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				: {}),
 			publish: {
 				permission: 4,
 			},
@@ -590,6 +641,19 @@ export function getPatch(release: ReleaseVersion): PartialRootTreeNode {
 			},
 			schedule: {
 				children: {
+					function: {
+						children: {
+							function: {
+								children: {
+									time: {
+										properties: {
+											min: 1,
+										},
+									},
+								},
+							},
+						},
+					},
 					clear: {
 						children: {
 							function: {
@@ -646,12 +710,62 @@ export function getPatch(release: ReleaseVersion): PartialRootTreeNode {
 							neutral: Sound,
 							player: Sound,
 							record: Sound,
+							...(ReleaseVersion.cmp(release, '1.21.9') >= 0
+								? {
+									ui: Sound,
+								}
+								: {}),
 							voice: Sound,
 							weather: Sound,
 						},
 					},
 				},
 			},
+			...(ReleaseVersion.cmp(release, '1.21.11') >= 0
+				? {
+					stopwatch: {
+						children: {
+							create: {
+								children: {
+									id: {
+										properties: {
+											category: 'stopwatch',
+											usageType: 'definition',
+										},
+									},
+								},
+							},
+							query: {
+								children: {
+									id: {
+										properties: {
+											category: 'stopwatch',
+										},
+									},
+								},
+							},
+							remove: {
+								children: {
+									id: {
+										properties: {
+											category: 'stopwatch',
+										},
+									},
+								},
+							},
+							restart: {
+								children: {
+									id: {
+										properties: {
+											category: 'stopwatch',
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				: {}),
 			summon: {
 				children: {
 					entity: {
@@ -740,6 +854,24 @@ export function getPatch(release: ReleaseVersion): PartialRootTreeNode {
 			tell: {
 				permission: 0,
 			},
+			...(ReleaseVersion.cmp(release, '1.21.5') >= 0
+				? {
+					test: {
+						children: {
+							create: {
+								children: {
+									id: {
+										properties: {
+											category: 'test_instance',
+											allowUnknown: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				: {}),
 			...(ReleaseVersion.cmp(release, '1.20.3') >= 0
 				? {
 					// Added in 23w43a (1.20.3, pack format 22)
@@ -773,6 +905,35 @@ export function getPatch(release: ReleaseVersion): PartialRootTreeNode {
 			w: {
 				permission: 0,
 			},
+			...(ReleaseVersion.cmp(release, '1.21.6') >= 0
+				? {
+					waypoint: {
+						children: {
+							modify: {
+								children: {
+									waypoint: {
+										children: {
+											style: {
+												children: {
+													set: {
+														children: {
+															style: {
+																properties: {
+																	category: 'waypoint_style',
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				: {}),
 			whitelist: {
 				permission: 3,
 			},
@@ -988,6 +1149,15 @@ const ExecuteCondition: PartialTreeNode = Object.freeze({
 				predicate: {
 					properties: {
 						category: 'predicate',
+					},
+				},
+			},
+		},
+		stopwatch: {
+			children: {
+				id: {
+					properties: {
+						category: 'stopwatch',
 					},
 				},
 			},

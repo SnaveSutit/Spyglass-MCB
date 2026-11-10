@@ -1,13 +1,15 @@
-import { SymbolFormatter, SymbolUtil } from '@spyglassmc/core'
-import { NodeJsExternals } from '@spyglassmc/core/lib/nodejs.js'
+import { Logger, SymbolFormatter, SymbolUtil } from '@spyglassmc/core'
 import * as fs from 'fs'
-import { describe, it } from 'mocha'
+import { describe, it } from 'node:test'
 import * as path from 'path'
-import snapshot from 'snap-shot-it'
 import url from 'url'
-import type { PackInfo, PackMcmeta } from '../../lib/dependency/common.js'
-import type { McmetaRegistries, McmetaStates, McmetaVersions } from '../../lib/dependency/mcmeta.js'
+import type { PackInfo } from '../../lib/dependency/common.js'
 import { Fluids, resolveConfiguredVersion, symbolRegistrar } from '../../lib/dependency/mcmeta.js'
+import type {
+	McmetaRegistries,
+	McmetaStates,
+	McmetaVersions,
+} from '../../lib/dependency/mcmeta/index.js'
 
 function readJsonSync(path: string): unknown {
 	return JSON.parse(fs.readFileSync(path, 'utf-8'))
@@ -44,31 +46,32 @@ describe('mcmeta', () => {
 			{ version: '20w06a' },
 			{ version: '22w03a' },
 			{ version: '1.16.5' },
+			{ version: '26.1-snapshot-1' },
 		]
 		for (const { version, packs } of suites) {
-			it(`Should resolve "${version}"`, async () => {
+			it(`Should resolve '${version}'`, async (t) => {
 				const actual = resolveConfiguredVersion(
 					version,
 					Fixtures.Versions,
 					packs ?? [],
-					console,
+					Logger.noop(),
 				)
-				snapshot(actual)
+				t.assert.snapshot(actual)
 			})
 		}
 	})
 
 	describe('symbolRegistrar()', () => {
-		it('Should register correctly', () => {
+		it('Should register correctly', (t) => {
 			const registrar = symbolRegistrar({
 				blocks: Fixtures.Blocks,
 				commands: undefined as any,
 				fluids: Fluids,
 				registries: Fixtures.Registries,
 			}, '1.18.2')
-			const symbols = new SymbolUtil({}, NodeJsExternals.event.EventEmitter)
+			const symbols = new SymbolUtil({})
 			registrar(symbols, {})
-			snapshot(SymbolFormatter.stringifySymbolTable(symbols.global))
+			t.assert.snapshot(SymbolFormatter.stringifySymbolTable(symbols.global))
 		})
 	})
 })

@@ -11,11 +11,11 @@ jobs:
   jekyll:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.0"
+          ruby-version: "3.4"
           working-directory: docs
 
       - uses: limjh16/jekyll-action-ts@v2

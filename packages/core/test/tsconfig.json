@@ -1,7 +1,11 @@
 {
-	"extends": "../../tsconfig-base",
+	"extends": "../../tsconfig-type-strip",
 	"compilerOptions": {
-		"outDir": "../test-out"
+		// Tests from other packages may import from @spyglassmc/core/test/utils.ts, so declaration emit
+		// needs to be enabled here.
+		"noEmit": false,
+		"outDir": "../test-out",
+		"emitDeclarationOnly": true
 	},
 	"references": [
 		{

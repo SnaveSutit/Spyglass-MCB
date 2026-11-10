@@ -1,6 +1,5 @@
 import type { ColorToken, ColorTokenType, LanguageError } from '@spyglassmc/core'
 import {
-	CompletionItem,
 	ErrorSeverity,
 	FileNode,
 	fileUtil,
@@ -28,8 +27,8 @@ import {
 } from 'discord.js'
 import type {
 	APIActionRowComponent,
+	APIButtonComponent,
 	APIEmbed,
-	APIMessageActionRowComponent,
 	ApplicationCommandOptionChoiceData,
 } from 'discord.js'
 import { join } from 'path'
@@ -44,7 +43,7 @@ const ProfilerId = 'discord-bot#startup'
 const profilers = new ProfilerFactory(console, [ProfilerId])
 const __profiler = profilers.get(ProfilerId)
 
-const rootPath = env.SPYGLASSMC_DISCORD_BOT_DIR
+const rootPath = env['SPYGLASSMC_DISCORD_BOT_DIR']
 if (!rootPath) {
 	throw new Error('Environment variable SPYGLASSMC_DISCORD_BOT_DIR expected.')
 }
@@ -238,7 +237,7 @@ function getReplyOptions(
 	expired = false,
 ): {
 	content: string
-	components: APIActionRowComponent<APIMessageActionRowComponent>[]
+	components: APIActionRowComponent<APIButtonComponent>[]
 	embeds: APIEmbed[]
 	fetchReply: true
 } {
@@ -309,6 +308,7 @@ const ColorTokenTypeLegend: Record<ColorTokenType, Set<RenderFormat>> = {
 	number: new Set(['foreground_green']),
 	operator: new Set(['reset']),
 	property: new Set(['foreground_cyan']),
+	punctuation: new Set(['reset']),
 	resourceLocation: new Set(['foreground_yellow']),
 	string: new Set(['foreground_green']),
 	struct: new Set(['foreground_white']),

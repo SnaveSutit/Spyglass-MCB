@@ -20,29 +20,41 @@ export function index(
 	options?: JsonCheckerOptions,
 ): core.SyncChecker<JsonNode> {
 	return (node, ctx) => {
+		// Run the registry-driven walk first: it descends to the shallowest nodes
+		// with their own checker (`json:string`) while their escape children are
+		// still intact. The mcdoc pass below replaces the children of any string
+		// that has a string parser attached to it.
+		core.checker.fallbackSync(node, ctx)
 		mcdoc.runtime.checker.typeDefinition<JsonNode>(
 			[{ originalNode: node, inferredType: inferType(node) }],
 			type,
 			mcdoc.runtime.checker.McdocCheckerContext.create(ctx, {
-				isEquivalent: (inferred, def) => {
-					switch (inferred.kind) {
-						case 'list':
-							return ['list', 'byte_array', 'int_array', 'long_array', 'tuple'].includes(
-								def.kind,
+				tryConvertTo: (node, target) => {
+					switch (node.type) {
+						case 'json:array':
+							switch (target.kind) {
+								case 'list':
+									return { kind: 'list', item: { kind: 'any' } }
+								case 'byte_array':
+								case 'int_array':
+								case 'long_array':
+									return { kind: target.kind }
+								case 'tuple':
+									return { kind: 'tuple', items: [] }
+							}
+							break
+						case 'json:number':
+							const literalValue = mcdoc.LiteralNumericValue.makeIfValid(
+								target.kind,
+								node.value.value,
+								node.value.type === 'long',
+								true,
 							)
-						case 'struct':
-							return def.kind === 'struct'
-						case 'byte':
-						case 'short':
-						case 'int':
-						case 'long':
-							return ['byte', 'short', 'int', 'long', 'float', 'double'].includes(def.kind)
-						case 'float':
-						case 'double':
-							return ['float', 'double'].includes(def.kind)
-						default:
-							return false
+							if (literalValue !== undefined) {
+								return { kind: 'literal', value: literalValue }
+							}
 					}
+					return undefined
 				},
 				getChildren: node => {
 					if (node.type === 'json:array') {
@@ -116,14 +128,17 @@ export function index(
 	}
 }
 
-function inferType(node: JsonNode): Exclude<mcdoc.McdocType, mcdoc.UnionType> {
+function inferType(node: JsonNode): mcdoc.runtime.checker.SimplifiedMcdocTypeNoUnion {
 	switch (node.type) {
 		case 'json:boolean':
 			return { kind: 'literal', value: { kind: 'boolean', value: node.value! } }
 		case 'json:number':
 			return {
 				kind: 'literal',
-				value: { kind: node.value.type, value: Number(node.value.value) },
+				value: {
+					kind: node.value.type,
+					value: node.value.value,
+				} as (mcdoc.LiteralNumericValue | mcdoc.LiteralLongNumberValue),
 			}
 		case 'json:null':
 			return { kind: 'any' } // null is always invalid?

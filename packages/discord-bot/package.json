@@ -13,15 +13,19 @@
     "test": "test/"
   },
   "dependencies": {
+    "@spyglassmc/core": "*",
+    "@spyglassmc/java-edition": "*",
+    "@spyglassmc/locales": "*",
+    "@spyglassmc/mcdoc": "*",
     "discord.js": "^14.16.3"
   },
   "scripts": {
     "release": "npm publish",
-    "release:dry": "npm publish --dry-run",
+    "release:dry": "npm publish --tag latest --dry-run",
     "start": "node lib/index.js"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.15.0"
   },
   "publishConfig": {
     "access": "public"

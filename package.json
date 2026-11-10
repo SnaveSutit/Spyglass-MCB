@@ -3,32 +3,37 @@
 	"private": true,
 	"version": "1.0.0",
 	"license": "MIT",
+	"type": "module",
 	"engines": {
-		"node": "^18.18.0 || >=20.0.0"
+		"node": ">=22.15.0"
 	},
 	"scripts": {
 		"ansible:prod": "ansible-playbook -i ansible/inventory-prod.yml --extra-vars \"@ansible/secrets.yml.vault\" --ask-vault-pass ansible/playbook.yml",
 		"ansible:prod:verbose": "ansible-playbook -i ansible/inventory-prod.yml --extra-vars \"@ansible/secrets.yml.vault\" --ask-vault-pass ansible/playbook.yml -vvv",
+		"bench": "node packages/benchmarks/lib/index.js",
 		"build": "wireit",
 		"build:dev": "wireit",
-		"watch": "npm run build:dev --watch",
-		"clean": "tsc -b packages --clean",
+		"build:tsc6": "tsc -b packages",
+		"clean": "tsgo -b packages --clean",
 		"clean:full": "rm -rf packages/*/lib packages/*/out packages/*/dist packages/*/test-out packages/*/*.tsbuildinfo .wireit packages/*/.wireit",
 		"commit": "gitmoji -c",
 		"docs:install": "cd docs && (bundle || true) && cd ..",
 		"docs:start": "cd docs && (bundle exec jekyll serve --incremental || true) && cd ..",
 		"fmt": "dprint fmt",
 		"fmt:check": "dprint check",
-		"lint": "eslint --cache --max-warnings=0 \"packages/*/{src,test}/**/*.{cts,mts,ts}\"",
-		"lint:fix": "eslint --cache --max-warnings=0 --fix \"packages/*/{src,test}/**/*.{cts,mts,ts}\"",
-		"release": "ts-node scripts/release.ts",
-		"release:dry": "ts-node scripts/release.ts --dry-run",
-		"set-tsconfig-references": "ts-node scripts/set_tsconfig_references",
+		"lint": "eslint --cache --max-warnings=0",
+		"lint:fix": "eslint --cache --max-warnings=0 --fix",
+		"refresh-unicode-data": "node scripts/refresh_unicode_data.ts",
+		"refresh-unicode-data:force": "node scripts/refresh_unicode_data.ts --force",
+		"release": "node scripts/release.ts",
+		"release:dry": "node scripts/release.ts --dry-run",
+		"sync-package-taxonomy": "node scripts/sync_package_taxonomy.ts",
 		"start-discord-bot": "node packages/discord-bot/lib/index.js",
 		"start-web-api-server": "npm start --workspace=packages/web-api-server",
-		"test": "nyc mocha",
-		"test:local": "nyc mocha --config .mocharc.local.jsonc",
-		"bench": "node packages/benchmarks/lib/index.js"
+		"test": "node --import=./packages/core/test/snapshot-setup.ts --test --test-isolation none",
+		"test:update-snapshots": "npm test -- --test-update-snapshots",
+		"watch": "npm run build:dev --watch",
+		"test:watch": "npm test -- --watch"
 	},
 	"wireit": {
 		"build": {
@@ -45,10 +50,13 @@
 		},
 		"build:packages": {
 			"$comment": "This script is used as a dependency by ./packages/playground:build and ./packages/vscode-extension:build",
-			"command": "tsc -b packages",
 			"dependencies": [
-				"./packages/locales:build"
-			],
+				"build:tsc",
+				"./packages/java-edition:build"
+			]
+		},
+		"build:tsc": {
+			"command": "tsgo -b packages",
 			"files": [
 				"packages/*/src/**/*.*",
 				"packages/*/test/**/*.*"
@@ -56,41 +64,30 @@
 		}
 	},
 	"devDependencies": {
+		"@eslint/compat": "^2.1.0",
+		"@eslint/eslintrc": "^3.3.5",
+		"@eslint/js": "^9.39.4",
 		"@types/benchmark": "^2.1.2",
-		"@types/mocha": "^10.0.1",
-		"@types/node": "^18.16.3",
-		"@types/snap-shot-core": "^10.2.0",
+		"@types/node": "^22.15.35",
 		"@types/webpack": "^5.28.1",
-		"@typescript-eslint/eslint-plugin": "^7.9.0",
-		"@typescript-eslint/parser": "^7.9.0",
-		"all-contributors-cli": "^6.25.0",
+		"@typescript-eslint/eslint-plugin": "^8.59.2",
+		"@typescript-eslint/parser": "^8.59.2",
+		"@typescript/native-preview": "^7.0.0-dev.20260511.1",
 		"benchmark": "^2.1.4",
 		"circular-dependency-plugin": "^5.2.2",
 		"dprint": "^0.45.1",
-		"eslint": "^8.39.0",
-		"eslint-config-prettier": "^8.8.0",
-		"eslint-import-resolver-typescript": "^3.6.1",
-		"eslint-plugin-import": "^2.29.1",
+		"eslint": "^9.39.4",
+		"eslint-config-prettier": "^9.1.2",
+		"eslint-import-resolver-typescript": "^4.4.4",
+		"eslint-plugin-import": "^2.32.0",
 		"gitmoji-cli": "^8.1.1",
-		"mocha": "^10.2.0",
-		"node-loader": "^2.0.0",
-		"nyc": "^15.1.0",
-		"snap-shot-core": "^10.2.4",
-		"snap-shot-it": "^7.9.10",
-		"source-map-loader": "^4.0.1",
-		"source-map-support": "^0.5.21",
+		"globals": "^17.6.0",
 		"ts-loader": "^9.4.2",
-		"ts-node": "^10.9.1",
-		"typescript": "^5.0.4",
+		"typescript": "^6.0.3",
+		"undici": "^7.25.0",
 		"webpack": "^5.95.0",
 		"webpack-cli": "^5.0.2",
 		"wireit": "^0.9.5"
-	},
-	"config": {
-		"snap-shot-it": {
-			"useRelativePath": true,
-			"sortSnapshots": true
-		}
 	},
 	"workspaces": [
 		"packages/**"

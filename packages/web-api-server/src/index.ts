@@ -1,8 +1,8 @@
 import cors from 'cors'
 import express, { type Request } from 'express'
-import assert from 'node:assert'
+import assert from 'node:assert/strict'
 import pino from 'pino'
-import pinoHttp from 'pino-http'
+import { pinoHttp } from 'pino-http'
 import {
 	assertRootDir,
 	errorHandler,
@@ -13,6 +13,7 @@ import {
 	purgeCdnCache,
 	sendGitFile,
 	sendGitTarball,
+	systemdNotify,
 	updateGitRepo,
 	userAgentEnforcer,
 	verifySignature,
@@ -20,7 +21,7 @@ import {
 
 const { bunnyCdnApiKey, bunnyCdnPullZoneId, dir: rootDir, discordLogWebhook, port, webhookSecret } =
 	loadConfig()
-await assertRootDir(rootDir)
+
 const logger = pino({
 	level: 'debug',
 	transport: {
@@ -40,32 +41,59 @@ const logger = pino({
 		],
 	},
 })
-const gits = await initGitRepos(logger, rootDir)
-const cache = new MemCache(gits.mcmeta)
+
+process
+	.on('unhandledRejection', (r) => {
+		logger.fatal(r, 'unhandledRejection')
+		process.exit(1)
+	})
+	.on('uncaughtException', (e) => {
+		logger.fatal(e, 'uncaughtException')
+		process.exit(1)
+	})
+	.on('SIGABRT', (sig) => {
+		logger.fatal(sig)
+	})
+	.on('SIGHUP', (sig) => {
+		logger.fatal(sig)
+	})
+	.on('SIGQUIT', (sig) => {
+		logger.fatal(sig)
+	})
+	.on('SIGTERM', (sig) => {
+		logger.fatal(sig)
+	})
+
+await assertRootDir(rootDir)
+
+const repoDirs = await initGitRepos(logger, rootDir)
+const cache = new MemCache(repoDirs.mcmeta)
 
 const DOC_URI = 'https://spyglassmc.com/developer/web-api.html'
+const MAX_REQUST_BODY_SIZE = '2MB'
+const WATCHDOG_INTERVAL_MS = 25_000
 
 const versionRoute = express.Router({ mergeParams: true })
 	.use(getVersionValidator(cache))
 	.get('/block_states', async (req: Request<{ version: string }>, res) => {
 		const { version } = req.params
-		await sendGitFile(req, res, gits.mcmeta, `${version}-summary`, 'blocks/data.json')
+		await sendGitFile(req, res, repoDirs.mcmeta, `${version}-summary`, 'blocks/data.json')
 	})
 	.get('/commands', async (req: Request<{ version: string }>, res) => {
 		const { version } = req.params
-		await sendGitFile(req, res, gits.mcmeta, `${version}-summary`, 'commands/data.json')
+		await sendGitFile(req, res, repoDirs.mcmeta, `${version}-summary`, 'commands/data.json')
 	})
 	.get('/registries', async (req: Request<{ version: string }>, res) => {
 		const { version } = req.params
-		await sendGitFile(req, res, gits.mcmeta, `${version}-summary`, 'registries/data.json')
+		await sendGitFile(req, res, repoDirs.mcmeta, `${version}-summary`, 'registries/data.json')
 	})
 	.get('/vanilla-assets-tiny/tarball', async (req: Request<{ version: string }>, res) => {
 		const { version } = req.params
-		await sendGitTarball(req, res, gits.mcmeta, `${version}-assets-tiny`)
+		await sendGitTarball(req, res, repoDirs.mcmeta, `${version}-assets-tiny`)
 	})
 	.get('/vanilla-data/tarball', async (req: Request<{ version: string }>, res) => {
 		const { version } = req.params
-		await sendGitTarball(req, res, gits.mcmeta, `${version}-data`)
+		await sendGitTarball(req, res, repoDirs.mcmeta, `${version}-data`)
 	})
 
 const app = express()
@@ -87,18 +115,18 @@ const app = express()
 	})
 	.use(userAgentEnforcer)
 	.get('/mcje/versions', async (req, res) => {
-		await sendGitFile(req, res, gits.mcmeta, 'summary', 'versions/data.json')
+		await sendGitFile(req, res, repoDirs.mcmeta, 'summary', 'versions/data.json')
 	})
 	.use('/mcje/versions/:version', versionRoute)
 	.get('/vanilla-mcdoc/symbols', async (req, res) => {
-		await sendGitFile(req, res, gits['vanilla-mcdoc'], `generated`, 'symbols.json')
+		await sendGitFile(req, res, repoDirs['vanilla-mcdoc'], `generated`, 'symbols.json')
 	})
 	.get('/vanilla-mcdoc/tarball', async (req, res) => {
-		await sendGitTarball(req, res, gits['vanilla-mcdoc'], 'main', 'vanilla-mcdoc')
+		await sendGitTarball(req, res, repoDirs['vanilla-mcdoc'], 'main', 'vanilla-mcdoc')
 	})
 	.post(
 		'/hooks/github',
-		express.raw({ type: 'application/json' }),
+		express.raw({ type: 'application/json', limit: MAX_REQUST_BODY_SIZE }),
 		async (req, res) => {
 			const signature = req.headers['x-hub-signature-256']
 			if (typeof signature !== 'string') {
@@ -117,11 +145,11 @@ const app = express()
 				repository: { name: string }
 			}
 			assert(name === 'vanilla-mcdoc' || name === 'mcmeta')
-			req.log.info({ repo: name }, `Received GitHub push event`)
-			await updateGitRepo(req.log, name, gits[name])
+			req.log.debug({ repo: name }, `Received GitHub push event`)
+			await updateGitRepo(req.log, name, repoDirs[name])
 			cache.invalidate()
 			await purgeCdnCache(bunnyCdnApiKey, bunnyCdnPullZoneId)
-			req.log.info('Purged CDN cache')
+			req.log.debug('Purged CDN cache')
 		},
 	)
 	.get('/', (_req, res) => {
@@ -134,14 +162,19 @@ const app = express()
 
 app.listen(port, () => {
 	logger.info({ port, rootDir }, 'Spyglass API server started')
+	if (process.env['NOTIFY_SOCKET']) {
+		systemdNotify('READY').catch((e) => logger.error(e, 'systemd-notify error'))
+	}
 })
 
-process
-	.on('unhandledRejection', (r) => {
-		logger.fatal(r, 'unhandledRejection')
-		process.exit(1)
-	})
-	.on('uncaughtException', (e) => {
-		logger.fatal(e, 'uncaughtException')
-		process.exit(1)
-	})
+if (process.env['NOTIFY_SOCKET']) {
+	setInterval(async () => {
+		try {
+			const data = await (await fetch(`http://localhost:${port}/mcje/versions`)).json()
+			assert(data instanceof Array && data.length > 0 && typeof data[0].id === 'string')
+			systemdNotify('WATCHDOG').catch((e) => logger.error(e, 'systemd-notify error'))
+		} catch (e) {
+			logger.error(e, 'Watchdog failure')
+		}
+	}, WATCHDOG_INTERVAL_MS)
+}

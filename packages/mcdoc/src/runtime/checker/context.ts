@@ -15,15 +15,16 @@ export interface RuntimePair<T> {
 	possibleValues: RuntimeNode<T>[]
 }
 
-export type NodeEquivalenceChecker = (
-	inferredNode: Exclude<SimplifiedMcdocTypeNoUnion, LiteralType | EnumType>,
+export type TypeConverter<T> = (
+	node: T,
 	definition: Exclude<SimplifiedMcdocTypeNoUnion, LiteralType | EnumType>,
-) => boolean
+) => SimplifiedMcdocTypeNoUnion | undefined
 
 export type TypeInfoAttacher<T> = (
 	node: T,
 	definition: SimplifiedMcdocType,
 	description?: string,
+	originalDefinition?: McdocType,
 ) => void
 
 export type NodeAttacher<T> = (node: T, attacher: (node: core.AstNode) => void) => void
@@ -40,7 +41,7 @@ export type ErrorReporter<T> = (error: McdocRuntimeError<T>) => void
 export interface McdocCheckerContext<T> extends core.CheckerContext {
 	allowMissingKeys: boolean
 	requireCanonical: boolean
-	isEquivalent: NodeEquivalenceChecker
+	tryConvertTo: TypeConverter<T>
 	getChildren: ChildrenGetter<T>
 	reportError: ErrorReporter<T>
 	attachTypeInfo?: TypeInfoAttacher<T>
@@ -57,7 +58,7 @@ export namespace McdocCheckerContext {
 			...ctx,
 			allowMissingKeys: options.allowMissingKeys ?? false,
 			requireCanonical: options.requireCanonical ?? false,
-			isEquivalent: options.isEquivalent ?? (() => false),
+			tryConvertTo: options.tryConvertTo ?? (() => undefined),
 			getChildren: options.getChildren ?? (() => []),
 			reportError: options.reportError ?? (() => {}),
 			attachTypeInfo: options.attachTypeInfo,

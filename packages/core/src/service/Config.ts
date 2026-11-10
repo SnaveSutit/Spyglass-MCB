@@ -1,8 +1,14 @@
 import rfdc from 'rfdc'
-import type { ExternalEventEmitter } from '../common/index.js'
-import { Arrayable, bufferToString, merge, TypePredicates } from '../common/index.js'
+import type { DeepPartial } from '../common/index.js'
+import {
+	Arrayable,
+	bufferToString,
+	EventDispatcher,
+	merge,
+	TypePredicates,
+} from '../common/index.js'
 import { ErrorSeverity } from '../source/index.js'
-import { DataFileCategories, FileCategories, RegistryCategories } from '../symbol/index.js'
+import { DataFileCategories, RegistryCategories } from '../symbol/index.js'
 import type { Project } from './Project.js'
 /* eslint-disable no-restricted-syntax */
 
@@ -42,23 +48,14 @@ export interface CustomResourceConfig {
 	/**
 	 * The first minecraft version the dispatched resource is available in.
 	 */
-	since?: `1.${number}`
+	since?: `${bigint}.${bigint}.${bigint}` | `${bigint}.${bigint}`
 	/**
 	 * The first minecraft version the dispatched resource is no longer available in.
 	 */
-	until?: `1.${number}`
+	until?: `${bigint}.${bigint}.${bigint}` | `${bigint}.${bigint}`
 }
 
 export interface EnvConfig {
-	/**
-	 * Where to download data like `mcmeta` or `vanilla-mcdoc` from (case-insensitive).
-	 *
-	 * * `GitHub`: Recommended, unless you have trouble connecting to `raw.githubusercontent.com`.
-	 * * `fastly`
-	 * * `jsDelivr`
-	 * * A custom URL, with placeholder variables: `${user}`, `${repo}`, `${tag}`, and `${path}`.
-	 */
-	dataSource: string
 	/**
 	 * A list of data packs the current project depends on. Each value in this array can be either an absolute file path
 	 * to a data pack folder or data pack archive (e.g. `.zip` or `.tar.gz`), or a special string like `@vanilla-mcdoc`.
@@ -83,13 +80,13 @@ export interface EnvConfig {
 		colors: boolean
 		completions: boolean
 		documentHighlighting: boolean
-		documentLinks: boolean
-		foldingRanges: boolean
+		documentLinks: boolean // Request is not implemented
+		foldingRanges: boolean // Request is not implemented
 		formatting: boolean
 		hover: boolean
 		inlayHint: boolean | { enabledNodes: string[] }
-		semanticColoring: boolean
-		selectionRanges: boolean
+		semanticColoring: boolean | { disabledLanguages?: string[] }
+		selectionRanges: boolean // Request is not implemented
 		signatures: boolean
 	}
 	/**
@@ -102,10 +99,6 @@ export interface EnvConfig {
 	 */
 	gameVersion: string
 	/**
-	 * Locale language for error messages and other texts provided by Spyglass.
-	 */
-	language: string
-	/**
 	 * Use custom files as mcmeta summaries.
 	 *
 	 * // TODO: Support file paths relative to the project root.
@@ -116,21 +109,17 @@ export interface EnvConfig {
 	permissionLevel: 1 | 2 | 3 | 4
 	plugins: string[]
 	/**
+	 * Whether to enable the project symbol cache.
+	 *
+	 * Currently enabled by default.
+	 */
+	enableSymbolCache: boolean
+	/**
 	 * Whether to enable caching of mcdoc simplified types.
 	 *
 	 * May become corrupt after changing game versions, so this is currently disabled by default.
 	 */
 	enableMcdocCaching: boolean
-	/**
-	 * Makes the file-watcher use polling to watch for file changes.
-	 * Comes at a performance cost for very large datapacks.
-	 *
-	 * On Windows, enabling this can fix file-lock issues when Spyglass is running.
-	 * See: https://github.com/SpyglassMC/Spyglass/issues/1414
-	 *
-	 * **You should only consider enabling this for Windows machines.**
-	 */
-	useFilePolling: boolean
 }
 
 export type LinterSeverity = 'hint' | 'information' | 'warning' | 'error'
@@ -334,7 +323,6 @@ export namespace SymbolLinterConfig {
  */
 export const VanillaConfig: Config = {
 	env: {
-		dataSource: 'GitHub',
 		dependencies: ['@vanilla-datapack', '@vanilla-resourcepack', '@vanilla-mcdoc'],
 		exclude: [
 			'.*/**',
@@ -368,12 +356,11 @@ export const VanillaConfig: Config = {
 			signatures: true,
 		},
 		gameVersion: 'Auto',
-		language: 'Default',
 		permissionLevel: 2,
 		plugins: [],
 		mcmetaSummaryOverrides: {},
+		enableSymbolCache: true,
 		enableMcdocCaching: false,
-		useFilePolling: false,
 	},
 	format: {
 		blockStateBracketSpacing: { inside: 0 },
@@ -432,7 +419,7 @@ export const VanillaConfig: Config = {
 			{
 				if: [
 					{ category: RegistryCategories, namespace: 'minecraft' },
-					{ category: [...DataFileCategories, 'bossbar', 'objective', 'team'] },
+					{ category: [...DataFileCategories, 'bossbar', 'objective', 'stopwatch', 'team'] },
 				],
 				then: { report: 'warning' },
 			},
@@ -453,16 +440,114 @@ export const VanillaConfig: Config = {
 	},
 }
 
+export type PartialConfig = DeepPartial<Config>
+
+export namespace PartialConfig {
+	/**
+	 * Filters a config for valid editor settings
+	 * @param spyglassmcConfiguration An unchecked config, should have the same layout as {@link PartialConfig}
+	 * @returns The config, only keeping editor settings that have valid values
+	 */
+	export function buildConfigFromEditorSettingsSafe(
+		spyglassmcConfiguration: any,
+	): PartialConfig {
+		const result: PartialConfig = {}
+		if (!spyglassmcConfiguration || typeof spyglassmcConfiguration !== 'object') {
+			return result
+		}
+		if (spyglassmcConfiguration.env && typeof spyglassmcConfiguration.env === 'object') {
+			result.env = {}
+			if (typeof spyglassmcConfiguration.env.gameVersion === 'string') {
+				result.env.gameVersion = spyglassmcConfiguration.env.gameVersion
+			}
+			if (typeof spyglassmcConfiguration.env.enableSymbolCache === 'boolean') {
+				result.env.enableSymbolCache = spyglassmcConfiguration.env.enableSymbolCache
+			}
+			if (typeof spyglassmcConfiguration.env.enableMcdocCaching === 'boolean') {
+				result.env.enableMcdocCaching = spyglassmcConfiguration.env.enableMcdocCaching
+			}
+			if (
+				spyglassmcConfiguration.env.feature
+				&& typeof spyglassmcConfiguration.env.feature === 'object'
+			) {
+				result.env.feature = {}
+				if (typeof spyglassmcConfiguration.env.feature.codeActions === 'boolean') {
+					result.env.feature.codeActions = spyglassmcConfiguration.env.feature.codeActions
+				}
+				if (typeof spyglassmcConfiguration.env.feature.colors === 'boolean') {
+					result.env.feature.colors = spyglassmcConfiguration.env.feature.colors
+				}
+				if (typeof spyglassmcConfiguration.env.feature.completions === 'boolean') {
+					result.env.feature.completions = spyglassmcConfiguration.env.feature.completions
+				}
+				if (typeof spyglassmcConfiguration.env.feature.documentHighlighting === 'boolean') {
+					result.env.feature.documentHighlighting =
+						spyglassmcConfiguration.env.feature.documentHighlighting
+				}
+				if (typeof spyglassmcConfiguration.env.feature.documentLinks === 'boolean') {
+					result.env.feature.documentLinks = spyglassmcConfiguration.env.feature.documentLinks
+				}
+				if (typeof spyglassmcConfiguration.env.feature.foldingRanges === 'boolean') {
+					result.env.feature.foldingRanges = spyglassmcConfiguration.env.feature.foldingRanges
+				}
+				if (typeof spyglassmcConfiguration.env.feature.formatting === 'boolean') {
+					result.env.feature.formatting = spyglassmcConfiguration.env.feature.formatting
+				}
+				if (typeof spyglassmcConfiguration.env.feature.hover === 'boolean') {
+					result.env.feature.hover = spyglassmcConfiguration.env.feature.hover
+				}
+				if (
+					spyglassmcConfiguration.env.feature.inlayHint
+					&& typeof spyglassmcConfiguration.env.feature.inlayHint === 'object'
+					&& Array.isArray(spyglassmcConfiguration.env.feature.inlayHint.enabledNodes)
+				) {
+					result.env.feature.inlayHint = {
+						enabledNodes: spyglassmcConfiguration.env.feature.inlayHint.enabledNodes
+							.filter((element: any) => typeof element === 'string'),
+					}
+				}
+				if (typeof spyglassmcConfiguration.env.feature.semanticColoring === 'boolean') {
+					result.env.feature.semanticColoring =
+						spyglassmcConfiguration.env.feature.semanticColoring
+				}
+				if (
+					spyglassmcConfiguration.env.feature.semanticColoring
+					&& typeof spyglassmcConfiguration.env.feature.semanticColoring === 'object'
+					&& Array.isArray(
+						spyglassmcConfiguration.env.feature.semanticColoring.disabledLanguages,
+					)
+				) {
+					result.env.feature.semanticColoring = {
+						disabledLanguages: spyglassmcConfiguration.env.feature.semanticColoring
+							.disabledLanguages
+							.filter((element: any) => typeof element === 'string'),
+					}
+				}
+				if (typeof spyglassmcConfiguration.env.feature.selectionRanges === 'boolean') {
+					result.env.feature.selectionRanges =
+						spyglassmcConfiguration.env.feature.selectionRanges
+				}
+				if (typeof spyglassmcConfiguration.env.feature.signatures === 'boolean') {
+					result.env.feature.signatures = spyglassmcConfiguration.env.feature.signatures
+				}
+			}
+		}
+		return result
+	}
+}
+
 type ConfigEvent = { config: Config }
 type ErrorEvent = { error: unknown; uri: string }
 
-export class ConfigService implements ExternalEventEmitter {
-	static readonly ConfigFileNames = Object.freeze(['spyglass.json', '.spyglassrc.json'] as const)
+export class ConfigService extends EventDispatcher<{ changed: ConfigEvent; error: ErrorEvent }> {
+	static readonly ConfigFileNames = Object.freeze(
+		['spyglass.json', '.spyglassrc', '.spyglassrc.json'] as const,
+	)
 
-	readonly #eventEmitter: ExternalEventEmitter
+	private currentEditorConfiguration: PartialConfig = {}
 
 	constructor(private readonly project: Project, private readonly defaultConfig = VanillaConfig) {
-		this.#eventEmitter = new project.externals.event.EventEmitter()
+		super()
 		const handler = async ({ uri }: { uri: string }) => {
 			if (ConfigService.isConfigFile(uri)) {
 				this.emit('changed', { config: await this.load() })
@@ -473,24 +558,9 @@ export class ConfigService implements ExternalEventEmitter {
 		project.on('fileDeleted', handler)
 	}
 
-	on(event: 'changed', callbackFn: (data: ConfigEvent) => void): this
-	on(event: 'error', callbackFn: (data: ErrorEvent) => void): this
-	on(event: string, callbackFn: (...args: any[]) => unknown): this {
-		this.#eventEmitter.on(event, callbackFn)
-		return this
-	}
-
-	once(event: 'changed', callbackFn: (data: ConfigEvent) => void): this
-	once(event: 'error', callbackFn: (data: ErrorEvent) => void): this
-	once(event: string, callbackFn: (...args: any[]) => unknown): this {
-		this.#eventEmitter.once(event, callbackFn)
-		return this
-	}
-
-	emit(event: 'changed', data: ConfigEvent): boolean
-	emit(event: 'error', data: ErrorEvent): boolean
-	emit(event: string, ...args: unknown[]): boolean {
-		return this.#eventEmitter.emit(event, ...args)
+	async onEditorConfigurationUpdate(editorConfiguration: PartialConfig) {
+		this.currentEditorConfiguration = editorConfiguration
+		this.emit('changed', { config: await this.load() })
 	}
 
 	async load(): Promise<Config> {
@@ -511,10 +581,10 @@ export class ConfigService implements ExternalEventEmitter {
 				break
 			}
 		}
-		return ConfigService.merge(this.defaultConfig, ...overrides)
+		return ConfigService.merge(this.defaultConfig, this.currentEditorConfiguration, ...overrides)
 	}
 
-	private static isConfigFile(this: void, uri: string): boolean {
+	public static isConfigFile(this: void, uri: string): boolean {
 		return ConfigService.ConfigFileNames.some((n) => uri.endsWith(`/${n}`))
 	}
 

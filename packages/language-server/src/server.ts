@@ -11,9 +11,11 @@ import * as ls from 'vscode-languageserver/node.js'
 import type {
 	CustomInitializationOptions,
 	CustomServerCapabilities,
+	MyLspAnalyzeProjectResult,
 	MyLspDataHackPubifyRequestParams,
 } from './util/index.js'
 import { toCore, toLS } from './util/index.js'
+import { LspFileWatcher } from './util/LspFileWatcher.js'
 
 export * from './util/types.js'
 
@@ -30,16 +32,39 @@ const cacheRoot = fileUtil.ensureEndingSlash(url.pathToFileURL(cacheRootPath).to
 const connection = ls.createConnection()
 let capabilities!: ls.ClientCapabilities
 let workspaceFolders!: ls.WorkspaceFolder[]
+let projectRoots!: core.RootUriString[]
 let hasShutdown = false
 
-const externals = getNodeJsExternals({ cacheRoot })
 const logger: core.Logger = {
 	error: (msg: any, ...args: any[]): void => connection.console.error(util.format(msg, ...args)),
 	info: (msg: any, ...args: any[]): void => connection.console.info(util.format(msg, ...args)),
 	log: (msg: any, ...args: any[]): void => connection.console.log(util.format(msg, ...args)),
 	warn: (msg: any, ...args: any[]): void => connection.console.warn(util.format(msg, ...args)),
 }
+const externals = getNodeJsExternals({ cacheRoot, logger })
 let service!: core.Service
+
+function buildSemanticTokensCapability(isDynamic: boolean): ls.SemanticTokensRegistrationOptions {
+	// Always register everything for static registration, so all changes to the config can be
+	// processed by the request handlers instead
+	const semanticTokensConfig = service.project.config.env.feature.semanticColoring
+	let disabledLanguages: string[] = []
+	if (
+		isDynamic && typeof semanticTokensConfig === 'object'
+		&& Array.isArray(semanticTokensConfig.disabledLanguages)
+	) {
+		disabledLanguages = semanticTokensConfig.disabledLanguages
+	}
+	return {
+		documentSelector: toLS.documentSelector(
+			service.project.meta,
+			{ disabledLanguages },
+		),
+		legend: toLS.semanticTokensLegend(),
+		full: { delta: false },
+		range: true,
+	}
+}
 
 connection.onInitialize(async (params) => {
 	const initializationOptions = params.initializationOptions as
@@ -52,6 +77,7 @@ connection.onInitialize(async (params) => {
 
 	capabilities = params.capabilities
 	workspaceFolders = params.workspaceFolders ?? []
+	projectRoots = workspaceFolders.map(f => core.fileUtil.ensureEndingSlash(f.uri))
 
 	if (initializationOptions?.inDevelopmentMode) {
 		await new Promise((resolve) => setTimeout(resolve, 3000))
@@ -73,14 +99,16 @@ connection.onInitialize(async (params) => {
 			profilers: new core.ProfilerFactory(logger, [
 				'cache#load',
 				'cache#save',
+				'project#analyzeProject',
 				'project#init',
 				'project#ready',
 				'project#ready#bind',
 			]),
 			project: {
-				defaultConfig: core.ConfigService.merge(core.VanillaConfig, {
-					env: { gameVersion: initializationOptions?.gameVersion },
-				}),
+				defaultConfig: core.ConfigService.merge(
+					core.VanillaConfig,
+					initializationOptions?.defaultConfig ?? {},
+				),
 				cacheRoot,
 				externals,
 				initializers: [mcdoc.initialize, je.initialize],
@@ -109,7 +137,16 @@ connection.onInitialize(async (params) => {
 		logger.error('[new Service]', e)
 	}
 
+	let semanticTokensProvider: ls.SemanticTokensRegistrationOptions | undefined = undefined
+	if (!capabilities.textDocument?.semanticTokens?.dynamicRegistration) {
+		logger.info(
+			"[startDynamicSemanticTokensRegistration] LanguageClient didn't permit dynamic registration for semantic tokens. Registering semantic tokens statically instead...",
+		)
+		semanticTokensProvider = buildSemanticTokensCapability(false)
+	}
+
 	const customCapabilities: CustomServerCapabilities = {
+		analyzeProject: true,
 		dataHackPubify: true,
 		resetProjectCache: true,
 		showCacheRoot: true,
@@ -130,12 +167,7 @@ connection.onInitialize(async (params) => {
 			documentSymbolProvider: { label: 'Spyglass' },
 			hoverProvider: {},
 			inlayHintProvider: {},
-			semanticTokensProvider: {
-				documentSelector: toLS.documentSelector(service.project.meta),
-				legend: toLS.semanticTokensLegend(),
-				full: { delta: false },
-				range: true,
-			},
+			semanticTokensProvider,
 			signatureHelpProvider: { triggerCharacters: [' '] },
 			textDocumentSync: { change: ls.TextDocumentSyncKind.Incremental, openClose: true },
 			workspaceSymbolProvider: {},
@@ -159,7 +191,57 @@ connection.onInitialized(async () => {
 			{ documentSelector: [{ language: 'mcdoc' }] },
 		)
 	}
-	await service.project.ready()
+	if (capabilities.workspace?.didChangeConfiguration?.dynamicRegistration) {
+		void connection.client.register(
+			ls.DidChangeConfigurationNotification.type,
+			{ section: ['spyglassmc'] },
+		)
+	}
+
+	// In case the initializationOptions were incomplete (for example because the client doesn't support them)
+	await updateEditorConfiguration()
+
+	startDynamicSemanticTokensRegistration()
+
+	// Initializes LspFileWatcher only when client supports didChangeWatchedFiles notifications.
+	const fileWatcher = capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration
+		? new LspFileWatcher({
+			capabilities,
+			connection,
+			externals,
+			locations: projectRoots,
+			logger,
+			predicate: (uri) => !service.project.shouldExclude(uri),
+		})
+			.on('ready', () => logger.info('[FileWatcher] ready'))
+			.on('add', (uri) => logger.info('[FileWatcher] added', uri))
+			.on('change', (uri) => logger.info('[FileWatcher] changed', uri))
+			.on('unlink', (uri) => logger.info('[FileWatcher] unlinked', uri))
+			.on('error', (e) => logger.error('[FileWatcher]', e))
+		: undefined
+
+	if (fileWatcher) {
+		// Listen for config changes and reconcile the internal state of the file watcher if
+		// `env.exclude` has changed.
+		service.project.on('configChanged', async ({ oldConfig, newConfig }) => {
+			const oldExclude = new Set(oldConfig.env.exclude)
+			const newExclude = new Set(newConfig.env.exclude)
+			if (oldExclude.size === newExclude.size && oldExclude.isSubsetOf(newExclude)) {
+				// `env.exclude` has not changed. Skip.
+				return
+			}
+
+			logger.info('[FileWatcher] env.exclude config has changed. Reconciling...')
+			for (const root of projectRoots) {
+				await fileWatcher.reconcile(root)
+			}
+		})
+	}
+
+	await service.project.ready({
+		projectRootsWatcher: fileWatcher,
+	})
+
 	if (capabilities.workspace?.workspaceFolders) {
 		connection.workspace.onDidChangeWorkspaceFolders(async () => {
 			// FIXME
@@ -167,6 +249,89 @@ connection.onInitialized(async () => {
 		})
 	}
 })
+
+function startDynamicSemanticTokensRegistration() {
+	// If the client permits it, semantic tokens are registered dynamically, such that if they are disabled in the config, the language client
+	// knows that Spyglass won't be providing tokens instead of just receiving an empty tokens list.
+	// This could otherwise cause problems with other language servers if the client decides to override their semantic tokens
+	// with the empty tokens list provided by Spyglass.
+
+	if (!capabilities.textDocument?.semanticTokens?.dynamicRegistration) {
+		return
+	}
+
+	let dynamicSemanticTokensDiposable: Promise<ls.Disposable> | undefined = undefined
+
+	function registerDynamicSemanticTokens() {
+		if (dynamicSemanticTokensDiposable !== undefined) {
+			return
+		}
+		logger.info('[registerDynamicSemanticTokens] Registering dynamic semantic tokens')
+		dynamicSemanticTokensDiposable = connection.client.register(
+			ls.SemanticTokensRegistrationType.type,
+			buildSemanticTokensCapability(true),
+		)
+	}
+
+	function unregisterDynamicSemanticTokens() {
+		logger.info('[unregisterDynamicSemanticTokens] Unregistering dynamic semantic tokens')
+		void dynamicSemanticTokensDiposable?.then(disposable => disposable.dispose())
+		dynamicSemanticTokensDiposable = undefined
+	}
+
+	if (service.project.config.env.feature.semanticColoring) {
+		registerDynamicSemanticTokens()
+	}
+
+	function didConfigChange(
+		oldSemanticTokensConfig: boolean | { disabledLanguages?: string[] },
+		newSemanticTokensConfig: boolean | { disabledLanguages?: string[] },
+	): boolean {
+		if (oldSemanticTokensConfig === newSemanticTokensConfig) {
+			return false
+		}
+		if (
+			typeof oldSemanticTokensConfig !== 'object'
+			|| typeof newSemanticTokensConfig !== 'object'
+		) {
+			return true
+		}
+		if (
+			!oldSemanticTokensConfig.disabledLanguages
+			&& !newSemanticTokensConfig.disabledLanguages
+		) {
+			return false
+		}
+		if (
+			Array.isArray(oldSemanticTokensConfig.disabledLanguages)
+			&& Array.isArray(newSemanticTokensConfig.disabledLanguages)
+			&& oldSemanticTokensConfig.disabledLanguages.length
+				=== newSemanticTokensConfig.disabledLanguages.length
+			&& oldSemanticTokensConfig.disabledLanguages.every((language, index) =>
+				language === newSemanticTokensConfig.disabledLanguages!![index]
+			)
+		) {
+			return false
+		}
+		return true
+	}
+
+	service.project.on('configChanged', ({ oldConfig, newConfig }) => {
+		const oldSemanticTokensConfig = oldConfig.env.feature.semanticColoring
+		const newSemanticTokensConfig = newConfig.env.feature.semanticColoring
+
+		if (!didConfigChange(oldSemanticTokensConfig, newSemanticTokensConfig)) {
+			return
+		}
+
+		if (oldSemanticTokensConfig) {
+			unregisterDynamicSemanticTokens()
+		}
+		if (newSemanticTokensConfig) {
+			registerDynamicSemanticTokens()
+		}
+	})
+}
 
 connection.onDidOpenTextDocument(
 	({ textDocument: { text, uri, version, languageId: languageID } }) => {
@@ -180,11 +345,9 @@ connection.onDidCloseTextDocument(({ textDocument: { uri } }) => {
 	service.project.onDidClose(uri)
 })
 
-connection.workspace.onDidRenameFiles(({}) => {})
-
 connection.onCodeAction(async ({ textDocument: { uri }, range }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.codeActions) {
 		return undefined
 	}
 	const { doc, node } = docAndNode
@@ -208,7 +371,7 @@ connection.onColorPresentation(async ({ textDocument: { uri }, color, range }) =
 })
 connection.onDocumentColor(async ({ textDocument: { uri } }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.colors) {
 		return undefined
 	}
 	const { doc, node } = docAndNode
@@ -218,7 +381,7 @@ connection.onDocumentColor(async ({ textDocument: { uri } }) => {
 
 connection.onCompletion(async ({ textDocument: { uri }, position, context }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.completions) {
 		return undefined
 	}
 	const { doc, node } = docAndNode
@@ -309,7 +472,7 @@ connection.onTypeDefinition(async ({ textDocument: { uri }, position }) => {
 
 connection.onDocumentHighlight(async ({ textDocument: { uri }, position }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.documentHighlighting) {
 		return undefined
 	}
 	const { doc, node } = docAndNode
@@ -339,7 +502,7 @@ connection.onDocumentSymbol(async ({ textDocument: { uri } }) => {
 
 connection.onHover(async ({ textDocument: { uri }, position }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.hover) {
 		return undefined
 	}
 	const { doc, node } = docAndNode
@@ -357,6 +520,49 @@ connection.languages.inlayHint.on(async ({ textDocument: { uri }, range }) => {
 	return toLS.inlayHints(hints, doc)
 })
 
+let isAnalyzingProject = false
+connection.onRequest(
+	'spyglassmc/analyzeProject',
+	async (token: ls.CancellationToken): Promise<MyLspAnalyzeProjectResult | undefined> => {
+		if (isAnalyzingProject) {
+			return undefined
+		}
+		isAnalyzingProject = true
+
+		const abortController = new AbortController()
+		token.onCancellationRequested(() => abortController.abort())
+
+		let reporter: ls.WorkDoneProgressServerReporter | undefined
+		if (capabilities.window?.workDoneProgress) {
+			reporter = await connection.window.createWorkDoneProgress()
+			reporter.token.onCancellationRequested(() => abortController.abort())
+			reporter.begin(
+				locales.localize('server.progress.analyze-project.title'),
+				0,
+				undefined,
+				true,
+			)
+		}
+
+		let lastPercentage = 0
+		try {
+			return await service.project.analyzeProject({
+				onProgress: (done, total) => {
+					const percentage = Math.floor(done / total * 100)
+					if (percentage > lastPercentage) {
+						lastPercentage = percentage
+						reporter?.report(percentage, `${done}/${total}`)
+					}
+				},
+				signal: abortController.signal,
+			})
+		} finally {
+			reporter?.done()
+			isAnalyzingProject = false
+		}
+	},
+)
+
 connection.onRequest('spyglassmc/resetProjectCache', async (): Promise<void> => {
 	return service.project.resetCache()
 })
@@ -367,7 +573,7 @@ connection.onRequest('spyglassmc/showCacheRoot', async (): Promise<void> => {
 
 connection.languages.semanticTokens.on(async ({ textDocument: { uri } }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.semanticColoring) {
 		return { data: [] }
 	}
 	const { doc, node } = docAndNode
@@ -380,7 +586,7 @@ connection.languages.semanticTokens.on(async ({ textDocument: { uri } }) => {
 })
 connection.languages.semanticTokens.onRange(async ({ textDocument: { uri }, range }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.semanticColoring) {
 		return { data: [] }
 	}
 	const { doc, node } = docAndNode
@@ -394,7 +600,7 @@ connection.languages.semanticTokens.onRange(async ({ textDocument: { uri }, rang
 
 connection.onSignatureHelp(async ({ textDocument: { uri }, position }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.signatures) {
 		return undefined
 	}
 	const { doc, node } = docAndNode
@@ -412,7 +618,7 @@ connection.onWorkspaceSymbol(({ query }) => {
 
 connection.onDocumentFormatting(async ({ textDocument: { uri }, options }) => {
 	const docAndNode = await service.project.ensureClientManagedChecked(uri)
-	if (!docAndNode) {
+	if (!docAndNode || !service.project.config.env.feature.formatting) {
 		return undefined
 	}
 	const { doc, node } = docAndNode
@@ -426,6 +632,13 @@ connection.onDocumentFormatting(async ({ textDocument: { uri }, options }) => {
 	}
 	return [toLS.textEdit(node.range, text, doc)]
 })
+
+connection.onDidChangeConfiguration(updateEditorConfiguration)
+async function updateEditorConfiguration() {
+	const settings = await connection.workspace.getConfiguration({ section: 'spyglassmc' })
+	const config = core.PartialConfig.buildConfigFromEditorSettingsSafe(settings)
+	await service.project.onEditorConfigurationUpdate(config)
+}
 
 connection.onShutdown(async (): Promise<void> => {
 	await service.project.close()

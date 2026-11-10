@@ -1308,6 +1308,27 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			}
 		})
 
+		it('lets a `<% %>` key or entry stand in for a missing required key', async () => {
+			const missing = async (body: string) => {
+				const uri = `${ProjectRoot}src/a.mcb`
+				const { project, errors } = await setup({
+					'/root/schema.mcdoc': schema,
+					'/root/src/a.mcb': `advancement a {\n${body}\n}\n`,
+				})
+				try {
+					await project.analyzeProject()
+					return messagesFor(errors, uri).filter((m) => /criteria/.test(m)).length
+				} finally {
+					await project.close()
+				}
+			}
+			assert.equal(await missing('\tparent: "x"'), 1)
+			assert.equal(await missing('\t<% spread %>'), 0)
+			assert.equal(await missing('\t"crit<%x%>": {}'), 0)
+			assert.equal(await missing('\tre_<%x%>: {}'), 1)
+			assert.equal(await missing('\tparent: <%x%>'), 1)
+		})
+
 		it('completes typed JSON values', async () => {
 			assert.deepEqual(
 				await completeJson('\t"criteria": {\n\t\t"t": {\n\t\t\t"trigger": |\n\t\t}\n\t}'),

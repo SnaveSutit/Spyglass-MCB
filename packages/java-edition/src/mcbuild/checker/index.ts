@@ -549,18 +549,48 @@ function literalType(arg: acorn.Expression | acorn.SpreadElement): string | unde
 	}
 }
 
-/** mcdoc checks the JSON; the parser already warned about duplicate keys, across IF/ELSE branches. */
+/**
+ * mcdoc checks the JSON. The parser already warned about duplicate keys, across IF/ELSE branches,
+ * and a missing key is fine if a `<% %>` key or entry in the object could make it.
+ */
 const jsonValue: core.SyncChecker<JsonValueNode> = (node, ctx) => {
+	const options: json.checker.JsonCheckerOptions = {
+		discardDuplicateKeyErrors: true,
+		filterError: (err) =>
+			err.kind !== 'missing_key'
+			|| !err.keys.some((key) =>
+				dynamicKeyPatterns(err.node.originalNode, ctx).some((p) => p.test(key))
+			),
+	}
 	for (const child of node.children) {
 		if (node.value && node.targetType && child.range.start === node.value.range.start) {
-			json.checker.index(node.targetType, { discardDuplicateKeyErrors: true })(
-				child as json.JsonNode,
-				ctx,
-			)
+			json.checker.index(node.targetType, options)(child as json.JsonNode, ctx)
 		} else {
 			core.checker.dispatchSync(child, ctx)
 		}
 	}
+}
+
+/**
+ * The keys each `<% %>` key or entry of a JSON object could make: `"key_<%n%>"` makes `key_…`,
+ * a lone `<% … %>` entry anything.
+ */
+function dynamicKeyPatterns(object: core.AstNode, ctx: core.CheckerContext): RegExp[] {
+	if (object.type !== 'json:object') {
+		return []
+	}
+	return (object.children ?? []).flatMap((pair) => {
+		const first = pair.children?.[0]
+		if (first?.type !== 'mcbuild:json_dynamic') {
+			return []
+		}
+		const text = ctx.doc.getText().slice(first.range.start, first.range.end)
+		const unquoted = /^(["']).*\1$/s.test(text) ? text.slice(1, -1) : text
+		const source = unquoted.split(/<%[^]*?(?:%>|$)/)
+			.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+			.join('.*')
+		return [new RegExp(`^${source}$`, 's')]
+	})
 }
 
 export function register(meta: core.MetaRegistry): void {

@@ -1931,6 +1931,7 @@ exports[`mcbuild parser (.mcb) > parse loot table file: 'loot_table my_loot {↓
                     }
                   }
                 ],
+                "relaxed": true,
                 "innerRange": {
                   "start": 20,
                   "end": 48

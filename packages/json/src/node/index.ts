@@ -33,6 +33,8 @@ export interface JsonObjectNode
 	extends core.RecordBaseNode<JsonStringNode, JsonNode>, JsonBaseNode
 {
 	readonly type: 'json:object'
+	/** Keys and simple string values may go unquoted, as in mc-build's JSON. */
+	relaxed?: true
 }
 export namespace JsonObjectNode {
 	/* istanbul ignore next */
@@ -54,6 +56,8 @@ export namespace JsonPairNode {
 
 export interface JsonArrayNode extends core.ListNode<JsonNode>, JsonBaseNode {
 	readonly type: 'json:array'
+	/** Simple string values may go unquoted, as in mc-build's JSON. */
+	relaxed?: true
 }
 export namespace JsonArrayNode {
 	export function is(obj: object | undefined): obj is JsonArrayNode {

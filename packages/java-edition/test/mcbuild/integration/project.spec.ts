@@ -1203,7 +1203,7 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			assert.deepEqual(Object.keys(edits), ['parent', 'criteria', 'rewards'])
 			assert.deepEqual(edits['criteria'], {
 				replaces: 'cr',
-				insert: '"criteria": {$1}',
+				insert: 'criteria: {$1}',
 				retrigger: false,
 			})
 			assert.deepEqual(Object.keys(await editsAt('\t"parent": "x",\n\tcr|')), [
@@ -1240,13 +1240,13 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			const edits = await editsAt('\t|\n\t"criteria": {}')
 			assert.deepEqual(edits['parent'], {
 				replaces: '',
-				insert: '"parent": "$1",',
+				insert: 'parent: "$1",',
 				retrigger: true,
 			})
 			const rewards = await editsAt('\t"rewards": {\n\t\t|\n\t}')
 			assert.deepEqual(rewards['experience'], {
 				replaces: '',
-				insert: '"experience": ${1:0}',
+				insert: 'experience: ${1:0}',
 				retrigger: false,
 			})
 		})
@@ -1255,7 +1255,7 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			const edits = await editsAt(
 				'\t"criteria": {\n\t\t"t": {\n\t\t\t"trigger": ti|\n\t\t}\n\t}',
 			)
-			assert.deepEqual(edits['tick'], { replaces: 'ti', insert: '"tick"', retrigger: false })
+			assert.deepEqual(edits['tick'], { replaces: 'ti', insert: 'tick', retrigger: false })
 		})
 
 		it('completes enum values inside quotes, replacing the whole string', async () => {
@@ -1280,9 +1280,9 @@ describe('mcbuild integration (real Project pipeline)', () => {
 				'src/a.mcb': 'predicate p {\n\t|\n}\n',
 			}, 'src/a.mcb')
 			assert.deepEqual(items.map((i) => i.insertText), [
-				'"vehicle": {$1}',
-				'"flags": [$1]',
-				'"gated": {$1}',
+				'vehicle: {$1}',
+				'flags: [$1]',
+				'gated: {$1}',
 			])
 		})
 
@@ -1327,6 +1327,24 @@ describe('mcbuild integration (real Project pipeline)', () => {
 			assert.equal(await missing('\t"crit<%x%>": {}'), 0)
 			assert.equal(await missing('\tre_<%x%>: {}'), 1)
 			assert.equal(await missing('\tparent: <%x%>'), 1)
+		})
+
+		it('quotes keys and values only where mc-build needs it', async () => {
+			const items = await completeItemsInProject({
+				'schema.mcdoc': 'dispatch minecraft:resource[predicate] to struct {\n'
+					+ '\t"minecraft:id"?: int,\n'
+					+ '\tplain?: ("tick" | "minecraft:x" | "true"),\n'
+					+ '}\n',
+				'src/a.mcb': 'predicate p {\n\tplain: tick\n\t|\n}\n',
+			}, 'src/a.mcb')
+			assert.deepEqual(items.map((i) => i.insertText), ['"minecraft:id": ${1:0}'])
+			const values = await completeItemsInProject({
+				'schema.mcdoc': 'dispatch minecraft:resource[predicate] to struct {\n'
+					+ '\tplain?: ("tick" | "minecraft:x" | "true"),\n'
+					+ '}\n',
+				'src/a.mcb': 'predicate p {\n\tplain: |\n}\n',
+			}, 'src/a.mcb')
+			assert.deepEqual(values.map((i) => i.insertText), ['tick', '"minecraft:x"', '"true"'])
 		})
 
 		it('completes typed JSON values', async () => {

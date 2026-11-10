@@ -168,6 +168,7 @@ class JsonValueParser {
 			type: 'json:object',
 			range: this.range(start),
 			children: [],
+			relaxed: true,
 		}
 		const pairs = node.children as unknown as Pair[]
 		while (true) {
@@ -253,6 +254,7 @@ class JsonValueParser {
 			type: 'json:array',
 			range: this.range(start),
 			children: [],
+			relaxed: true,
 		}
 		const items = node.children as unknown as Item[]
 		while (true) {

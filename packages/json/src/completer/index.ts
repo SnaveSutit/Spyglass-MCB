@@ -17,7 +17,7 @@ const array: core.Completer<JsonArrayNode> = (node, ctx) => {
 		return ctx.meta.getCompleter(item.value.type)(item.value, ctx)
 	}
 	if (node.typeDef?.kind === 'list') {
-		const completions = valuesAt(node.typeDef.item, ctx.offset, ctx)
+		const completions = valuesAt(node.typeDef.item, ctx.offset, ctx, !!node.relaxed)
 		if (ctx.offset < (node.children[node.children.length - 1]?.range.start ?? 0)) {
 			return completions.map(c => ({ ...c, insertText: c.insertText + ',' }))
 		}
@@ -39,7 +39,7 @@ const record = core.completer.record<JsonStringNode, JsonNode, JsonObjectNode>({
 				.find(({ key }) => key === pairKey)
 				?.field.type
 			if (field) {
-				return valuesAt(field, range, ctx)
+				return valuesAt(field, range, ctx, !!record.relaxed)
 			}
 		}
 		return []
@@ -80,19 +80,22 @@ function keyItems(
 		return []
 	}
 	const keySet = new Set(existingKeys.map(n => n.value))
+	// A key the user started with a quote stays quoted.
+	const typedQuote = !!(range as Partial<core.DeepReadonly<JsonStringNode>>).quote
 	return mcdoc.runtime.completer
 		.getFields(record.typeDef, ctx)
 		.filter(({ key }) => !keySet.has(key))
 		.map(({ key, field }) => {
 			const value = insertValue ? valuePlaceholder(field.type, ctx, key) : undefined
+			const spelling = quoted(key, !record.relaxed || typedQuote || !BARE_KEY.test(key))
 			return core.CompletionItem.create(key, range, {
 				kind: core.CompletionKind.Field,
 				detail: mcdoc.McdocType.toString(field.type as core.Mutable<mcdoc.McdocType>),
 				documentation: field.desc,
 				deprecated: field.deprecated,
 				sortText: field.optional ? '$b' : '$a', // sort above hardcoded $schema
-				filterText: `"${key}"`,
-				insertText: `"${key}"${value === undefined ? '' : `: ${value}`}${
+				filterText: spelling,
+				insertText: `${spelling}${value === undefined ? '' : `: ${value}`}${
 					insertPairEnd ? ',' : ''
 				}`,
 				// Offer the value straight away, but not for a number, or for an object or
@@ -214,9 +217,10 @@ function valuesAt(
 	typeDef: core.DeepReadonly<mcdoc.McdocType>,
 	range: core.RangeLike,
 	ctx: core.CompleterContext,
+	relaxed: boolean,
 ): core.CompletionItem[] {
 	const word = bareWordAt(ctx)
-	const items = getValues(typeDef, word ?? range, ctx)
+	const items = getValues(typeDef, word ?? range, ctx, !relaxed)
 	return word ? items.map((item) => ({ ...item, filterText: item.label })) : items
 }
 
@@ -241,8 +245,9 @@ function bareWordAt(ctx: core.CompleterContext): core.Range | undefined {
 const primitive: core.Completer<JsonPrimitiveNode> = (node, ctx) => {
 	const insideRange = core.Range.contains(node, ctx.offset, true)
 	// Core's string completer only knows parsed values like ids; enum strings have none.
+	const quote = !isRelaxed(node) || (node.type === 'json:string' && !!node.quote)
 	if (node.type === 'json:string' && insideRange && node.typeDef && !node.children?.length) {
-		const values = getValues(node.typeDef, stringRange(node, ctx), ctx)
+		const values = getValues(node.typeDef, stringRange(node, ctx), ctx, quote)
 		if (values.length) {
 			return values
 		}
@@ -256,29 +261,50 @@ const primitive: core.Completer<JsonPrimitiveNode> = (node, ctx) => {
 	if (!node.typeDef) {
 		return []
 	}
-	return getValues(node.typeDef, insideRange ? node : ctx.offset, ctx)
+	return getValues(node.typeDef, insideRange ? node : ctx.offset, ctx, quote)
 }
 
+/** Whether `node` sits in a {@link JsonObjectNode.relaxed} object or array. */
+function isRelaxed(node: core.DeepReadonly<core.AstNode>): boolean {
+	for (let n: core.DeepReadonly<core.AstNode> | undefined = node; n; n = n.parent) {
+		if (n.type === 'json:object' || n.type === 'json:array') {
+			return !!(n as core.DeepReadonly<JsonObjectNode | JsonArrayNode>).relaxed
+		}
+	}
+	return false
+}
+
+/** mc-build's unquoted key rule; bare values also can't read as `true`, `false` or `null`. */
+const BARE_KEY = /^[A-Za-z_][A-Za-z0-9_.+-]*$/
+
+function quoted(text: string, quote: boolean): string {
+	return quote ? `"${text}"` : text
+}
+
+/** `quote: false` leaves string values bare where mc-build allows it. */
 function getValues(
 	typeDef: core.DeepReadonly<mcdoc.McdocType>,
 	range: core.RangeLike,
 	ctx: core.CompleterContext,
+	quote = true,
 ): core.CompletionItem[] {
 	return mcdoc.runtime.completer.getValues(typeDef, ctx)
 		.map((
 			{ value, labelSuffix, detail, documentation, kind, completionKind, insertText, sortText },
-		) =>
-			core.CompletionItem.create(value, range, {
+		) => {
+			const quoteIt = kind === 'string'
+				&& (quote || !BARE_KEY.test(value) || ['true', 'false', 'null'].includes(value))
+			return core.CompletionItem.create(value, range, {
 				kind: completionKind ?? core.CompletionKind.Value,
 				labelSuffix,
 				detail,
 				documentation,
-				filterText: kind === 'string' ? `"${value}"` : value,
-				insertText: kind === 'string' ? `"${insertText ?? value}"` : insertText ?? value,
+				filterText: quoted(value, quoteIt),
+				insertText: quoted(insertText ?? value, quoteIt),
 				sortText,
 				replacesRange: true,
 			})
-		)
+		})
 }
 
 export function register(meta: core.MetaRegistry): void {
